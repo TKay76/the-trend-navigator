@@ -1,88 +1,114 @@
-# Context Engineering Template
+# YouTube Shorts Trend Analysis MVP
 
-A comprehensive template for getting started with Context Engineering - the discipline of engineering context for AI coding assistants so they have the information necessary to get the job done end to end.
+A comprehensive system for analyzing YouTube Shorts trends using AI-powered classification and automated data collection. This MVP automatically collects YouTube Shorts data, classifies videos into categories, and generates actionable insights for content creators.
 
-> **Context Engineering is 10x better than prompt engineering and 100x better than vibe coding.**
+> **Built using Context Engineering principles for reliable AI agent development.**
 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Clone this template
+# 1. Clone this repository
 git clone https://github.com/coleam00/Context-Engineering-Intro.git
 cd Context-Engineering-Intro
 
-# 2. Set up your project rules (optional - template provided)
-# Edit CLAUDE.md to add your project-specific guidelines
+# 2. Set up virtual environment
+python3 -m venv venv_linux
+source venv_linux/bin/activate  # On Windows: venv_linux\Scripts\activate
 
-# 3. Add examples (highly recommended)
-# Place relevant code examples in the examples/ folder
+# 3. Install dependencies
+pip install -r requirements.txt
 
-# 4. Create your initial feature request
-# Edit INITIAL.md with your feature requirements
+# 4. Set up environment variables
+cp .env.example .env
+# Edit .env with your API keys:
+# - YOUTUBE_API_KEY: Get from Google Cloud Console
+# - LLM_API_KEY: Get from your LLM provider (OpenAI, Anthropic, etc.)
 
-# 5. Generate a comprehensive PRP (Product Requirements Prompt)
-# In Claude Code, run:
-/generate-prp INITIAL.md
+# 5. Run the complete analysis pipeline
+python -m src.cli pipeline --categories "dance,fitness,tutorial"
 
-# 6. Execute the PRP to implement your feature
-# In Claude Code, run:
-/execute-prp PRPs/your-feature-name.md
+# 6. Or run individual commands
+python -m src.cli collect --categories "dance,fitness" --max-results 20
+python -m src.cli analyze --input collected_videos.json
+python -m src.cli report --input classified_videos.json
 ```
 
 ## 📚 Table of Contents
 
-- [What is Context Engineering?](#what-is-context-engineering)
-- [Template Structure](#template-structure)
-- [Step-by-Step Guide](#step-by-step-guide)
-- [Writing Effective INITIAL.md Files](#writing-effective-initialmd-files)
-- [The PRP Workflow](#the-prp-workflow)
-- [Using Examples Effectively](#using-examples-effectively)
-- [Best Practices](#best-practices)
+- [Features](#features)
+- [System Architecture](#system-architecture)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Testing](#testing)
+- [Contributing](#contributing)
 
-## What is Context Engineering?
+## ✨ Features
 
-Context Engineering represents a paradigm shift from traditional prompt engineering:
+### Core Functionality
+- **🎯 Automated Data Collection**: Efficiently collects YouTube Shorts data using YouTube Data API v3
+- **🤖 AI-Powered Classification**: Classifies videos into three main categories:
+  - **Challenge**: Dance challenges, fitness challenges, viral challenges
+  - **Info/Advice**: Educational content, tutorials, tips, how-to videos
+  - **Trending Sounds/BGM**: Music-focused content, sound trends, audio-centric videos
+- **📊 Trend Analysis**: Generates comprehensive reports with actionable insights
+- **⚡ Quota Management**: Efficient API usage within YouTube's 10,000 units/day limit
+- **🔄 Scalable Architecture**: Easy to extend with additional categories and features
 
-### Prompt Engineering vs Context Engineering
+### Technical Features
+- **Async Processing**: High-performance async implementation throughout
+- **Type Safety**: Full Pydantic model validation for all data structures
+- **Error Handling**: Robust error handling with exponential backoff and retry logic
+- **Rate Limiting**: Respectful API usage with built-in rate limiting
+- **Comprehensive Testing**: 80%+ test coverage with unit and integration tests
+- **CLI Interface**: User-friendly command-line interface for all operations
 
-**Prompt Engineering:**
-- Focuses on clever wording and specific phrasing
-- Limited to how you phrase a task
-- Like giving someone a sticky note
+## 🏗️ System Architecture
 
-**Context Engineering:**
-- A complete system for providing comprehensive context
-- Includes documentation, examples, rules, patterns, and validation
-- Like writing a full screenplay with all the details
-
-### Why Context Engineering Matters
-
-1. **Reduces AI Failures**: Most agent failures aren't model failures - they're context failures
-2. **Ensures Consistency**: AI follows your project patterns and conventions
-3. **Enables Complex Features**: AI can handle multi-step implementations with proper context
-4. **Self-Correcting**: Validation loops allow AI to fix its own mistakes
-
-## Template Structure
-
+### Project Structure
 ```
-context-engineering-intro/
-├── .claude/
-│   ├── commands/
-│   │   ├── generate-prp.md    # Generates comprehensive PRPs
-│   │   └── execute-prp.md     # Executes PRPs to implement features
-│   └── settings.local.json    # Claude Code permissions
-├── PRPs/
-│   ├── templates/
-│   │   └── prp_base.md       # Base template for PRPs
-│   └── EXAMPLE_multi_agent_prp.md  # Example of a complete PRP
-├── examples/                  # Your code examples (critical!)
-├── CLAUDE.md                 # Global rules for AI assistant
-├── INITIAL.md               # Template for feature requests
-├── INITIAL_EXAMPLE.md       # Example feature request
-└── README.md                # This file
+youtube-shorts-trend-analysis/
+├── src/
+│   ├── models/
+│   │   ├── video_models.py           # Video data models
+│   │   └── classification_models.py  # Classification models
+│   ├── clients/
+│   │   ├── youtube_client.py         # YouTube API client
+│   │   └── llm_provider.py           # LLM provider interface
+│   ├── agents/
+│   │   ├── collector_agent.py        # Data collection agent
+│   │   └── analyzer_agent.py         # Analysis and reporting agent
+│   ├── core/
+│   │   ├── settings.py               # Configuration management
+│   │   └── exceptions.py             # Custom exceptions
+│   └── cli.py                        # Command-line interface
+├── tests/                            # Comprehensive test suite
+├── examples/                         # Code examples and patterns
+├── PRPs/                            # Product Requirements Prompts
+├── .env.example                     # Environment variables template
+├── requirements.txt                 # Python dependencies
+└── README.md                        # This file
 ```
 
-This template doesn't focus on RAG and tools with context engineering because I have a LOT more in store for that soon. ;)
+### Agent Architecture
+The system follows a strict separation of concerns with two main agents:
+
+1. **🗂️ Collector Agent**: 
+   - **Role**: Data collection only
+   - **Responsibility**: Fetch YouTube Shorts data via API
+   - **Output**: Raw video data with metadata
+
+2. **🔍 Analyzer Agent**:
+   - **Role**: Analysis and reporting only
+   - **Responsibility**: AI classification and trend analysis
+   - **Input**: Raw video data from Collector Agent
+   - **Output**: Classified videos and trend reports
+
+### Data Flow
+```
+YouTube API → CollectorAgent → Raw Video Data → AnalyzerAgent → Classified Data → Reports
+```
 
 ## Step-by-Step Guide
 

@@ -16,7 +16,16 @@
       "Bash(python:*)",
       "Bash(python -m pytest:*)",
       "Bash(python3 -m pytest:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:ai.pydantic.dev)",
+      "WebFetch(domain:developers.google.com)",
+      "Bash(pip install:*)",
+      "Bash(mypy:*)",
+      "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/test_models.py::TestVideoModels::test_video_category_enum -v)",
+      "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/test_models.py -v)",
+      "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m src.cli --help)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

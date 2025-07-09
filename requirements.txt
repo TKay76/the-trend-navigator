@@ -1,0 +1,28 @@
+# YouTube Shorts Trend Analysis MVP Dependencies
+
+# Core AI framework
+pydantic-ai[anthropic,openai,gemini]
+
+# HTTP client for API calls
+httpx
+
+# Configuration and environment management
+python-dotenv
+pydantic-settings
+
+# Rate limiting for API requests
+aiometer
+
+# Testing framework
+pytest
+pytest-asyncio
+pytest-cov
+
+# Type checking
+mypy
+
+# Code formatting and linting
+ruff
+
+# Additional utilities
+typing-extensions
