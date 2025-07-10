@@ -1,30 +1,29 @@
 ### **FEATURE:**
 
-- **YouTube Shorts Trend Analysis & AI Report MVP (Minimum Viable Product) Development**
-- **Objective:** To develop an initial web-based version that automatically analyzes trending short-form content on YouTube and provides actionable insights to creators.
+- **Improve Stability and Efficiency of AI AnalyzerAgent**
+- **Objective:** To resolve the rate limiting (429) and server overload (503) errors that occurred during LLM API calls when classifying numerous videos, making the AI analysis pipeline stable and scalable.
 
 ### **CORE FUNCTIONS:**
 
-1. **Automated Data Collection:** Periodically collect YouTube Shorts video data that meets specific criteria using the YouTube Data API.
-2. **AI-Powered Classification:** Automatically classify the collected videos into broad categories (Challenge, Info/Advice, Trending Sounds/BGM) using an LLM.
-3. **AI Trend Report Generation:** Automatically generate in-depth reports for each trend based on the analyzed data.
+1. **Introduce Batch Processing:**
+    - **Target File:** `src/agents/analyzer_agent.py`
+    - **Requirement:** Change the current '1 LLM API call per video' approach to a '1 LLM API call per batch of videos (e.g., 10 videos)' approach. This will drastically reduce the number of API calls to solve the quota exhaustion problem.
+2. **Add Retry Logic:**
+    - **Target File:** `src/clients/llm_provider.py`
+    - **Requirement:** Similar to the implementation in `youtube_client.py`, add logic to automatically retry with **exponential backoff** when transient server errors like `503 Service Unavailable` occur during LLM API calls (e.g., retry 3 times after a short delay).
 
 ### **EXAMPLES:**
 
-- **Prioritize referencing the new examples in the `examples/` folder:**
-    - **`examples/youtube_api_client_example.py`**: Follow the patterns in this file (async, error handling, constant management) when implementing the YouTube API client.
-    - **`examples/data_model_example.py`**: Follow the Pydantic model structure in this file when defining data models.
-    - **`examples/simple_processing_agent_example.py`**: Follow the basic structure and data flow in this file when implementing data processing agents.
+- **Reference for Retry Logic:** When implementing in `llm_provider.py`, refer to the `for attempt in range(3):` loop and `asyncio.sleep(2 ** attempt)` pattern from the `_make_search_request` function in `src/clients/youtube_client.py`.
+- **Data Model Utilization:** When batching information for multiple videos into a single request, utilize models like `BatchClassificationRequest` from `src/models/classification_models.py` or define new Pydantic models as needed to maintain data structure integrity.
 
 ### **DOCUMENTATION:**
 
-- **Pydantic AI Documentation:** https://ai.pydantic.dev/
-- **YouTube Data API v3 Docs:** https://developers.google.com/youtube/v3/docs
+- **pydantic-ai Batching/Streaming:** (Reference if needed) https://ai.pydantic.dev/ (Check if the pydantic-ai library directly supports batching, and if so, prioritize using that feature.)
+- **HTTPX Retry/Backoff:** https://www.python-httpx.org/async/ (Reference for implementing retry and delay logic in an async environment.)
 
 ### **OTHER CONSIDERATIONS:**
 
-- **API Quota Management:** Logic to call the YouTube Data API efficiently without exceeding its daily quota must be implemented.
-- **Environment Variables:** All sensitive information must be managed via a `.env` file.
-- **MVP Focus:** Do not consider TikTok or Instagram integration; focus solely on the core pipeline with YouTube data.
-- **Error Handling:** Robust error handling logic for all possible exceptions must be included.
-- **Category Scalability:** While the MVP will focus on the three main categories, the design must be flexible to easily accommodate more granular sub-categories in the future.
+- **Maintain Existing Structure:** This task is a **refactoring** effort to improve the internal logic of `AnalyzerAgent` and `LLMProvider`, not to add new features. The overall project structure and data flow should not be altered.
+- **Cost-Effectiveness:** When batching, sending too many videos in a single request could hit the LLM's context length limit or cause costs to spike. Design the system to start with a baseline of processing 5-10 videos per request to find the optimal batch size.
+- **Update Test Code:** Test code in `tests/test_analyzer_agent.py` and a new `tests/test_llm_provider.py` must be updated or added to verify the changed logic.

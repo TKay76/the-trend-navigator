@@ -53,7 +53,7 @@ class AnalyzerAgent:
     
     async def classify_videos(self, videos: List[YouTubeVideoRaw]) -> List[ClassifiedVideo]:
         """
-        Classify videos into categories using AI.
+        Classify videos into categories using AI with optimized batch processing.
         
         STRICT ROLE: Analysis only, no external API calls.
         
@@ -63,45 +63,83 @@ class AnalyzerAgent:
         Returns:
             List of classified videos with AI categorization
         """
-        logger.info(f"[{self.agent_name}] Starting classification of {len(videos)} videos")
+        logger.info(f"[{self.agent_name}] Starting batch classification of {len(videos)} videos")
+        
+        if not videos:
+            return []
         
         classified_videos = []
+        batch_size = 5  # Start conservative, can tune up to 10
         
-        for i, video in enumerate(videos):
+        # Process videos in batches
+        for i in range(0, len(videos), batch_size):
+            batch = videos[i:i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(videos) + batch_size - 1) // batch_size
+            
+            logger.debug(f"[{self.agent_name}] Processing batch {batch_num}/{total_batches}: {len(batch)} videos")
+            
             try:
-                logger.debug(f"[{self.agent_name}] Classifying video {i+1}/{len(videos)}: {video.video_id}")
+                # Use new batch classification
+                batch_responses = await self.llm_provider.classify_videos_batch_optimized(batch, batch_size)
                 
-                # Use LLM provider for classification
-                classification_response = await self.llm_provider.classify_video(video)
+                # Convert to ClassifiedVideo objects
+                for response in batch_responses:
+                    # Find the corresponding video by ID
+                    video = next((v for v in batch if v.video_id == response.video_id), None)
+                    if video:
+                        classified_video = ClassifiedVideo(
+                            video_id=video.video_id,
+                            title=video.snippet.title,
+                            category=response.category,
+                            confidence=response.confidence,
+                            reasoning=response.reasoning,
+                            view_count=video.statistics.view_count if video.statistics else None,
+                            published_at=video.snippet.published_at,
+                            channel_title=video.snippet.channel_title
+                        )
+                        classified_videos.append(classified_video)
+                        
+                        logger.debug(f"[{self.agent_name}] Classified {video.video_id} as {response.category} "
+                                    f"(confidence: {response.confidence:.2f})")
                 
-                # Convert to ClassifiedVideo model
-                classified_video = ClassifiedVideo(
-                    video_id=video.video_id,
-                    title=video.snippet.title,
-                    category=classification_response.category,
-                    confidence=classification_response.confidence,
-                    reasoning=classification_response.reasoning,
-                    view_count=video.statistics.view_count if video.statistics else None,
-                    published_at=video.snippet.published_at,
-                    channel_title=video.snippet.channel_title
-                )
-                
-                classified_videos.append(classified_video)
-                self.analysis_stats["classifications_successful"] = (self.analysis_stats["classifications_successful"] or 0) + 1
-                
-                logger.debug(f"[{self.agent_name}] Classified as {classification_response.category} "
-                            f"(confidence: {classification_response.confidence:.2f})")
+                self.analysis_stats["classifications_successful"] = (self.analysis_stats["classifications_successful"] or 0) + len(batch_responses)
                 
             except ClassificationError as e:
-                logger.warning(f"[{self.agent_name}] Classification failed for video {video.video_id}: {e}")
-                self.analysis_stats["classifications_failed"] = (self.analysis_stats["classifications_failed"] or 0) + 1
-                continue
+                logger.warning(f"[{self.agent_name}] Batch classification failed for batch {batch_num}: {e}")
+                self.analysis_stats["classifications_failed"] = (self.analysis_stats["classifications_failed"] or 0) + len(batch)
+                
+                # Try fallback individual classification for this batch
+                logger.info(f"[{self.agent_name}] Attempting individual classification fallback for batch {batch_num}")
+                for video in batch:
+                    try:
+                        classification_response = await self.llm_provider.classify_video(video)
+                        
+                        classified_video = ClassifiedVideo(
+                            video_id=video.video_id,
+                            title=video.snippet.title,
+                            category=classification_response.category,
+                            confidence=classification_response.confidence,
+                            reasoning=classification_response.reasoning,
+                            view_count=video.statistics.view_count if video.statistics else None,
+                            published_at=video.snippet.published_at,
+                            channel_title=video.snippet.channel_title
+                        )
+                        
+                        classified_videos.append(classified_video)
+                        self.analysis_stats["classifications_successful"] = (self.analysis_stats["classifications_successful"] or 0) + 1
+                        
+                        logger.debug(f"[{self.agent_name}] Individual fallback classified {video.video_id} as {classification_response.category}")
+                        
+                    except ClassificationError as fallback_error:
+                        logger.warning(f"[{self.agent_name}] Individual fallback also failed for video {video.video_id}: {fallback_error}")
+                        continue
         
         # Update statistics
         self.analysis_stats["videos_analyzed"] = (self.analysis_stats["videos_analyzed"] or 0) + len(videos)
         self.analysis_stats["last_analysis"] = datetime.now()
         
-        logger.info(f"[{self.agent_name}] Classification complete: "
+        logger.info(f"[{self.agent_name}] Batch classification complete: "
                    f"{len(classified_videos)}/{len(videos)} successful")
         
         return classified_videos

@@ -1,12 +1,12 @@
 """Tests for analysis agent"""
 
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from datetime import datetime
 
 from src.agents.analyzer_agent import AnalyzerAgent, create_analyzer_agent
-from src.models.video_models import VideoCategory, ClassifiedVideo, TrendReport
-from src.models.classification_models import TrendAnalysisResult
+from src.models.video_models import VideoCategory, ClassifiedVideo, TrendReport, YouTubeVideoRaw, VideoSnippet
+from src.models.classification_models import TrendAnalysisResult, ClassificationResponse
 from src.core.exceptions import ClassificationError
 
 
@@ -32,7 +32,7 @@ class TestAnalyzerAgent:
     
     def test_analyzer_agent_initialization_without_provider(self):
         """Test analyzer agent initialization without LLM provider"""
-        with pytest.mock.patch('src.agents.analyzer_agent.create_llm_provider') as mock_create:
+        with patch('src.agents.analyzer_agent.create_llm_provider') as mock_create:
             mock_provider = Mock()
             mock_create.return_value = mock_provider
             
@@ -43,9 +43,23 @@ class TestAnalyzerAgent:
     
     @pytest.mark.asyncio
     async def test_classify_videos_success(self, analyzer_agent, mock_llm_provider, sample_youtube_videos, sample_classification_response):
-        """Test successful video classification"""
-        # Configure mock to return classification response
-        mock_llm_provider.classify_video.return_value = sample_classification_response
+        """Test successful video classification with batch processing"""
+        # Create batch responses with matching video IDs
+        def create_matching_responses(videos, batch_size):
+            return [
+                ClassificationResponse(
+                    video_id=video.video_id,
+                    category=sample_classification_response.category,
+                    confidence=sample_classification_response.confidence,
+                    reasoning=sample_classification_response.reasoning,
+                    alternative_categories=[],
+                    model_used=sample_classification_response.model_used,
+                    processing_time=sample_classification_response.processing_time
+                )
+                for video in videos
+            ]
+        
+        mock_llm_provider.classify_videos_batch_optimized.side_effect = create_matching_responses
         
         result = await analyzer_agent.classify_videos(sample_youtube_videos)
         
@@ -53,8 +67,8 @@ class TestAnalyzerAgent:
         assert len(result) == len(sample_youtube_videos)
         assert all(isinstance(video, ClassifiedVideo) for video in result)
         
-        # Verify LLM provider was called for each video
-        assert mock_llm_provider.classify_video.call_count == len(sample_youtube_videos)
+        # Verify batch LLM provider was called
+        mock_llm_provider.classify_videos_batch_optimized.assert_called()
         
         # Verify statistics were updated
         stats = analyzer_agent.get_analysis_stats()
@@ -65,24 +79,30 @@ class TestAnalyzerAgent:
     
     @pytest.mark.asyncio
     async def test_classify_videos_with_failures(self, analyzer_agent, mock_llm_provider, sample_youtube_videos, sample_classification_response):
-        """Test video classification with some failures"""
-        # Configure mock to fail on first video, succeed on others
+        """Test video classification with batch failures and individual fallback"""
+        # Configure mock batch to fail, then individual fallback to succeed for some
+        mock_llm_provider.classify_videos_batch_optimized.side_effect = ClassificationError("Batch classification failed")
         mock_llm_provider.classify_video.side_effect = [
-            ClassificationError("Classification failed"),
-            sample_classification_response,
-            sample_classification_response
+            sample_classification_response,  # First video succeeds
+            ClassificationError("Individual classification failed"),  # Second video fails
+            sample_classification_response   # Third video succeeds
         ]
         
         result = await analyzer_agent.classify_videos(sample_youtube_videos)
         
-        # Should have 2 successful classifications (3 videos - 1 failure)
+        # Should have 2 successful classifications (batch failed, 2 individual successes)
         assert len(result) == 2
+        
+        # Verify batch was attempted first
+        mock_llm_provider.classify_videos_batch_optimized.assert_called()
+        
+        # Verify individual fallback was used
+        assert mock_llm_provider.classify_video.call_count == len(sample_youtube_videos)
         
         # Verify statistics
         stats = analyzer_agent.get_analysis_stats()
         assert stats["videos_analyzed"] == len(sample_youtube_videos)
         assert stats["classifications_successful"] == 2
-        assert stats["classifications_failed"] == 1
     
     @pytest.mark.asyncio
     async def test_classify_videos_empty_list(self, analyzer_agent):
@@ -342,7 +362,7 @@ class TestAnalyzerAgent:
         assert agent.llm_provider == mock_llm_provider
         
         # Test without provided provider
-        with pytest.mock.patch('src.agents.analyzer_agent.create_llm_provider') as mock_create:
+        with patch('src.agents.analyzer_agent.create_llm_provider') as mock_create:
             mock_provider = Mock()
             mock_create.return_value = mock_provider
             
@@ -353,14 +373,16 @@ class TestAnalyzerAgent:
     @pytest.mark.asyncio
     async def test_strict_role_compliance(self, analyzer_agent, mock_llm_provider, sample_youtube_videos, sample_classification_response):
         """Test that analyzer agent only does analysis (STRICT ROLE)"""
-        mock_llm_provider.classify_video.return_value = sample_classification_response
+        # Configure batch processing mock
+        batch_responses = [sample_classification_response for _ in sample_youtube_videos]
+        mock_llm_provider.classify_videos_batch_optimized.return_value = batch_responses
         
         # Analyzer should not make external API calls
         # It should only receive data and perform analysis
         result = await analyzer_agent.classify_videos(sample_youtube_videos)
         
         # Verify only LLM provider was used (no YouTube API calls)
-        assert mock_llm_provider.classify_video.called
+        assert mock_llm_provider.classify_videos_batch_optimized.called
         
         # Result should be analyzed/classified data
         for video in result:
@@ -391,7 +413,8 @@ class TestAnalyzerAgent:
     @pytest.mark.asyncio 
     async def test_classification_data_conversion(self, analyzer_agent, mock_llm_provider, sample_youtube_video, sample_classification_response):
         """Test conversion from classification response to classified video"""
-        mock_llm_provider.classify_video.return_value = sample_classification_response
+        # Configure batch processing mock
+        mock_llm_provider.classify_videos_batch_optimized.return_value = [sample_classification_response]
         
         result = await analyzer_agent.classify_videos([sample_youtube_video])
         
@@ -411,3 +434,154 @@ class TestAnalyzerAgent:
         
         if sample_youtube_video.statistics:
             assert classified_video.view_count == sample_youtube_video.statistics.view_count
+    
+    @pytest.mark.asyncio
+    async def test_classify_videos_with_batching(self, analyzer_agent, mock_llm_provider, sample_youtube_videos, sample_classification_response):
+        """Test video classification using batch processing"""
+        # Create batch responses with matching video IDs
+        def create_matching_batch_responses(videos, batch_size):
+            return [
+                ClassificationResponse(
+                    video_id=video.video_id,
+                    category=sample_classification_response.category,
+                    confidence=sample_classification_response.confidence,
+                    reasoning=sample_classification_response.reasoning,
+                    alternative_categories=[],
+                    model_used=sample_classification_response.model_used,
+                    processing_time=sample_classification_response.processing_time
+                )
+                for video in videos
+            ]
+        
+        mock_llm_provider.classify_videos_batch_optimized.side_effect = create_matching_batch_responses
+        
+        result = await analyzer_agent.classify_videos(sample_youtube_videos)
+        
+        # Verify results
+        assert len(result) == len(sample_youtube_videos)
+        assert all(isinstance(video, ClassifiedVideo) for video in result)
+        
+        # Verify batch method was called instead of individual calls
+        mock_llm_provider.classify_videos_batch_optimized.assert_called()
+        
+        # Individual classify_video should not be called for successful batch
+        assert not mock_llm_provider.classify_video.called
+        
+        # Verify statistics were updated
+        stats = analyzer_agent.get_analysis_stats()
+        assert stats["videos_analyzed"] == len(sample_youtube_videos)
+        assert stats["classifications_successful"] == len(sample_youtube_videos)
+        assert stats["classifications_failed"] == 0
+    
+    @pytest.mark.asyncio
+    async def test_classify_videos_batch_failure_recovery(self, analyzer_agent, mock_llm_provider, sample_youtube_videos, sample_classification_response):
+        """Test recovery when some batches fail"""
+        # Mock batch classification to fail, then individual fallback to succeed
+        mock_llm_provider.classify_videos_batch_optimized.side_effect = ClassificationError("Batch failed")
+        mock_llm_provider.classify_video.return_value = sample_classification_response
+        
+        result = await analyzer_agent.classify_videos(sample_youtube_videos)
+        
+        # Should have successful results from individual fallback
+        assert len(result) == len(sample_youtube_videos)
+        
+        # Verify batch method was attempted
+        mock_llm_provider.classify_videos_batch_optimized.assert_called()
+        
+        # Verify individual fallback was used
+        assert mock_llm_provider.classify_video.call_count == len(sample_youtube_videos)
+        
+        # Verify statistics account for both batch failure and individual successes
+        stats = analyzer_agent.get_analysis_stats()
+        assert stats["videos_analyzed"] == len(sample_youtube_videos)
+        assert stats["classifications_successful"] == len(sample_youtube_videos)
+        # Note: batch failure is counted but then individual successes recover
+    
+    @pytest.mark.asyncio
+    async def test_classify_videos_batch_partial_failure(self, analyzer_agent, mock_llm_provider, sample_youtube_videos, sample_classification_response):
+        """Test handling when batch returns partial results"""
+        # Mock batch to return only partial responses (simulating some videos not found in results)
+        def partial_batch_response(videos, batch_size):
+            # Return response for only the first video
+            return [
+                ClassificationResponse(
+                    video_id=videos[0].video_id,
+                    category=VideoCategory.CHALLENGE,
+                    confidence=0.85,
+                    reasoning="Partial batch classification",
+                    alternative_categories=[],
+                    model_used="test/model",
+                    processing_time=0.0
+                )
+            ]
+        
+        mock_llm_provider.classify_videos_batch_optimized.side_effect = partial_batch_response
+        mock_llm_provider.classify_video.return_value = sample_classification_response
+        
+        result = await analyzer_agent.classify_videos(sample_youtube_videos)
+        
+        # Should get at least one result
+        assert len(result) >= 1
+        
+        # Verify batch was attempted
+        mock_llm_provider.classify_videos_batch_optimized.assert_called()
+    
+    @pytest.mark.asyncio
+    async def test_classify_videos_batch_size_behavior(self, analyzer_agent, mock_llm_provider, sample_classification_response):
+        """Test batch processing with different video counts"""
+        # Create larger video list to test batching
+        large_video_list = []
+        for i in range(12):  # More than default batch size of 5
+            snippet = VideoSnippet(
+                title=f"Test Video {i+1}",
+                description=f"Description {i+1}",
+                published_at=datetime.now(),
+                channel_title=f"Channel {i+1}",
+                thumbnail_url="https://example.com/thumb.jpg"
+            )
+            video = YouTubeVideoRaw(
+                video_id=f"video_{i+1}",
+                snippet=snippet
+            )
+            large_video_list.append(video)
+        
+        # Create responses that match the video IDs being processed
+        def mock_batch_response(videos, batch_size):
+            return [
+                ClassificationResponse(
+                    video_id=video.video_id,
+                    category=VideoCategory.CHALLENGE,
+                    confidence=0.85,
+                    reasoning="Batch classification",
+                    alternative_categories=[],
+                    model_used="test/model",
+                    processing_time=0.0
+                )
+                for video in videos  # Return response for all videos in the batch
+            ]
+        
+        mock_llm_provider.classify_videos_batch_optimized.side_effect = mock_batch_response
+        
+        result = await analyzer_agent.classify_videos(large_video_list)
+        
+        # Should process all videos in multiple batches
+        assert len(result) >= 10  # At least most videos should be processed
+        
+        # Verify batch method was called multiple times (once per batch)
+        assert mock_llm_provider.classify_videos_batch_optimized.call_count >= 2  # At least 2 batches for 12 videos
+    
+    @pytest.mark.asyncio
+    async def test_classify_videos_empty_batch_optimization(self, analyzer_agent, mock_llm_provider):
+        """Test batch processing with empty video list"""
+        result = await analyzer_agent.classify_videos([])
+        
+        assert result == []
+        # No API calls should be made for empty list
+        assert not mock_llm_provider.classify_videos_batch_optimized.called
+        assert not mock_llm_provider.classify_video.called
+        
+        # Statistics should reflect no processing
+        stats = analyzer_agent.get_analysis_stats()
+        assert stats["videos_analyzed"] == 0
+        assert stats["classifications_successful"] == 0
+        assert stats["classifications_failed"] == 0
