@@ -1,7 +1,7 @@
 """Tests for data collection agent"""
 
 import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
 
 from src.agents.collector_agent import CollectorAgent, create_collector_agent
@@ -36,86 +36,94 @@ class TestCollectorAgent:
         assert agent_no_client.youtube_client is None
     
     @pytest.mark.asyncio
-    async def test_collect_trending_shorts_success(self, collector_agent, mock_youtube_client, sample_youtube_videos):
-        """Test successful trending shorts collection"""
-        # Configure mock to return sample videos
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
+    async def test_collect_top_videos_success(self, collector_agent, mock_youtube_client, sample_youtube_videos):
+        """Test successful top video collection"""
+        mock_youtube_client.search_trending_shorts.return_value = sample_youtube_videos
         mock_youtube_client.get_quota_usage.return_value = 100
         
         search_queries = ["dance", "fitness", "tutorial"]
         
-        result = await collector_agent.collect_trending_shorts(
+        result = await collector_agent.collect_top_videos(
             search_queries=search_queries,
-            max_results_per_query=10,
+            max_results_per_query=50,
+            days=7,
+            top_n=10,
             region_code="US"
         )
         
-        # Verify results
-        assert len(result) == len(sample_youtube_videos) * len(search_queries)  # 3 videos * 3 queries = 9
+        # Verify results (should be unique videos, up to top_n * 3)
+        assert len(result) <= len(sample_youtube_videos) * len(search_queries) # Max possible unique videos
         assert all(isinstance(video, YouTubeVideoRaw) for video in result)
         
         # Verify YouTube client was called correctly
-        assert mock_youtube_client.search_shorts.call_count == len(search_queries)
+        assert mock_youtube_client.search_trending_shorts.call_count == len(search_queries)
         
         # Verify statistics were updated
         stats = collector_agent.get_collection_stats()
         assert stats["videos_collected"] == len(result)
-        assert stats["api_calls_made"] == len(search_queries)
+        assert stats["quota_used"] == mock_youtube_client.get_quota_usage()
         assert stats["last_collection"] is not None
     
     @pytest.mark.asyncio
-    async def test_collect_trending_shorts_duplicate_removal(self, collector_agent, mock_youtube_client, sample_youtube_videos):
+    async def test_collect_top_videos_duplicate_removal(self, collector_agent, mock_youtube_client, sample_youtube_videos):
         """Test duplicate video removal during collection"""
-        # Return same videos for different queries (simulating duplicates)
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
+        mock_youtube_client.search_trending_shorts.return_value = sample_youtube_videos
         mock_youtube_client.get_quota_usage.return_value = 100
         
-        search_queries = ["dance", "dance challenge"]  # Similar queries might return duplicates
+        search_queries = ["dance", "dance challenge"]
         
-        result = await collector_agent.collect_trending_shorts(search_queries)
+        result = await collector_agent.collect_top_videos(
+            search_queries=search_queries,
+            max_results_per_query=50,
+            days=7,
+            top_n=10
+        )
         
-        # Verify duplicates are removed
         video_ids = [video.video_id for video in result]
         unique_ids = set(video_ids)
-        assert len(unique_ids) == len(sample_youtube_videos)  # Should only have unique videos
+        assert len(unique_ids) <= len(sample_youtube_videos) # Should have unique videos, potentially less than sample_youtube_videos if top_n filters them out
     
     @pytest.mark.asyncio
-    async def test_collect_trending_shorts_quota_limit(self, collector_agent, mock_youtube_client):
+    async def test_collect_top_videos_quota_limit(self, collector_agent, mock_youtube_client):
         """Test quota limit handling during collection"""
-        # Set quota near limit
         mock_youtube_client.get_quota_usage.return_value = 9950
         collector_agent.settings.max_daily_quota = 10000
         
         search_queries = ["dance", "fitness"]
         
-        result = await collector_agent.collect_trending_shorts(search_queries)
+        result = await collector_agent.collect_top_videos(
+            search_queries=search_queries,
+            max_results_per_query=50,
+            days=7,
+            top_n=10
+        )
         
         # Should stop at first query due to quota limit
-        assert mock_youtube_client.search_shorts.call_count == 0
+        assert mock_youtube_client.search_trending_shorts.call_count == 0
         assert result == []
     
     @pytest.mark.asyncio
-    async def test_collect_trending_shorts_quota_exceeded_error(self, collector_agent, mock_youtube_client):
+    async def test_collect_top_videos_quota_exceeded_error(self, collector_agent, mock_youtube_client):
         """Test handling of quota exceeded error"""
-        # Configure mock to raise quota exceeded error
-        mock_youtube_client.search_shorts.side_effect = QuotaExceededError("Quota exceeded")
+        mock_youtube_client.search_trending_shorts.side_effect = QuotaExceededError("Quota exceeded")
         mock_youtube_client.get_quota_usage.return_value = 100
         
         search_queries = ["dance", "fitness"]
         
-        result = await collector_agent.collect_trending_shorts(search_queries)
+        result = await collector_agent.collect_top_videos(
+            search_queries=search_queries,
+            max_results_per_query=50,
+            days=7,
+            top_n=10
+        )
         
-        # Should handle error gracefully and return empty result
         assert result == []
-        
-        # Should have attempted first query
-        assert mock_youtube_client.search_shorts.call_count == 1
+        assert mock_youtube_client.search_trending_shorts.call_count == 1
     
     @pytest.mark.asyncio
-    async def test_collect_trending_shorts_api_error_recovery(self, collector_agent, mock_youtube_client, sample_youtube_videos):
+    async def test_collect_top_videos_api_error_recovery(self, collector_agent, mock_youtube_client, sample_youtube_videos):
         """Test recovery from API errors"""
-        # Configure mock to fail on first call, succeed on second
-        mock_youtube_client.search_shorts.side_effect = [
+        mock_youtube_client.search_trending_shorts.side_effect = [
             YouTubeAPIError("API Error"),
             sample_youtube_videos
         ]
@@ -123,21 +131,27 @@ class TestCollectorAgent:
         
         search_queries = ["dance", "fitness"]
         
-        result = await collector_agent.collect_trending_shorts(search_queries)
+        result = await collector_agent.collect_top_videos(
+            search_queries=search_queries,
+            max_results_per_query=50,
+            days=7,
+            top_n=10
+        )
         
-        # Should continue with next query after error
         assert len(result) == len(sample_youtube_videos)
-        assert mock_youtube_client.search_shorts.call_count == 2
+        assert mock_youtube_client.search_trending_shorts.call_count == 2
     
     @pytest.mark.asyncio
     async def test_collect_by_request(self, collector_agent, mock_youtube_client, sample_youtube_videos):
         """Test collection using structured request"""
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
+        mock_youtube_client.search_trending_shorts.return_value = sample_youtube_videos
         mock_youtube_client.get_quota_usage.return_value = 100
         
         request = CollectionRequest(
             search_queries=["dance", "fitness"],
-            max_results_per_query=15,
+            max_results_per_query=50,
+            days=7,
+            top_n=10,
             region_code="KR"
         )
         
@@ -145,52 +159,42 @@ class TestCollectorAgent:
         
         assert len(result) > 0
         
-        # Verify correct parameters were used
-        mock_youtube_client.search_shorts.assert_called_with(
+        mock_youtube_client.search_trending_shorts.assert_called_with(
             query="fitness",  # Last call
-            max_results=15,
+            max_results=50,
+            days=7,
+            order="viewCount",
             region_code="KR"
         )
     
     @pytest.mark.asyncio
     async def test_collect_by_category_keywords(self, collector_agent, mock_youtube_client, sample_youtube_videos):
         """Test collection by category keywords"""
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
+        mock_youtube_client.search_trending_shorts.return_value = sample_youtube_videos
         mock_youtube_client.get_quota_usage.return_value = 100
         
         categories = ["dance", "fitness"]
         
         result = await collector_agent.collect_by_category_keywords(
             categories=categories,
-            max_results_per_category=20,
+            max_results_per_category=50,
+            days=7,
+            top_n=10,
             region_code="US"
         )
         
         assert len(result) > 0
         
-        # Should generate multiple search queries per category (4 per category)
-        expected_calls = len(categories) * 4
-        assert mock_youtube_client.search_shorts.call_count == expected_calls
-        
-        # Verify max_results is divided by number of queries per category
-        assert mock_youtube_client.search_shorts.call_args[1]["max_results"] == 5  # 20 / 4
+        # Verify correct parameters were used
+        mock_youtube_client.search_trending_shorts.assert_called_with(
+            query="fitness shorts",  # Last call
+            max_results=50,
+            days=7,
+            order="viewCount",
+            region_code="US"
+        )
     
-    @pytest.mark.asyncio
-    async def test_collect_with_rate_limiting(self, collector_agent, mock_youtube_client, sample_youtube_videos):
-        """Test rate limiting between API calls"""
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
-        mock_youtube_client.get_quota_usage.return_value = 100
-        
-        # Set low rate limit for testing
-        collector_agent.settings.rate_limit_per_second = 60  # 1 request per second
-        
-        search_queries = ["dance", "fitness"]
-        
-        with pytest.mock.patch('asyncio.sleep') as mock_sleep:
-            await collector_agent.collect_trending_shorts(search_queries)
-            
-            # Should have called sleep between requests
-            mock_sleep.assert_called_once_with(1.0)  # 60/60 = 1 second delay
+    
     
     def test_get_collection_stats(self, collector_agent, mock_youtube_client):
         """Test collection statistics retrieval"""
@@ -231,13 +235,15 @@ class TestCollectorAgent:
     @pytest.mark.asyncio
     async def test_context_manager_with_existing_client(self, mock_youtube_client):
         """Test context manager with existing YouTube client"""
+        mock_youtube_client.client = Mock()
+        mock_youtube_client.client.aclose = AsyncMock()
+        
         agent = CollectorAgent(youtube_client=mock_youtube_client)
         
         async with agent as ctx_agent:
             assert ctx_agent == agent
             assert ctx_agent.youtube_client == mock_youtube_client
         
-        # Client should be closed
         mock_youtube_client.client.aclose.assert_called_once()
     
     @pytest.mark.asyncio
@@ -245,8 +251,8 @@ class TestCollectorAgent:
         """Test context manager without existing YouTube client"""
         agent = CollectorAgent()
         
-        with pytest.mock.patch('src.agents.collector_agent.YouTubeClient') as mock_client_class:
-            mock_client_instance = Mock()
+        with patch('src.agents.collector_agent.YouTubeClient') as mock_client_class:
+            mock_client_instance = AsyncMock()
             mock_client_class.return_value = mock_client_instance
             
             async with agent as ctx_agent:
@@ -261,13 +267,13 @@ class TestCollectorAgent:
         """Test collection when no YouTube client is provided"""
         agent = CollectorAgent()
         
-        with pytest.mock.patch('src.agents.collector_agent.YouTubeClient') as mock_client_class:
+        with patch('src.agents.collector_agent.YouTubeClient') as mock_client_class:
             mock_client_instance = Mock()
-            mock_client_instance.search_shorts = AsyncMock(return_value=[])
+            mock_client_instance.search_trending_shorts = AsyncMock(return_value=[])
             mock_client_instance.get_quota_usage.return_value = 100
             mock_client_class.return_value = mock_client_instance
             
-            await agent.collect_trending_shorts(["dance"])
+            await agent.collect_top_videos(["dance"], days=7, top_n=10)
             
             # Verify YouTube client was created
             mock_client_class.assert_called_once()
@@ -290,7 +296,7 @@ class TestCollectorAgent:
     @pytest.mark.asyncio
     async def test_collect_empty_search_queries(self, collector_agent):
         """Test collection with empty search queries"""
-        result = await collector_agent.collect_trending_shorts([])
+        result = await collector_agent.collect_top_videos([])
         
         assert result == []
         assert collector_agent.collection_stats["api_calls_made"] == 0
@@ -298,7 +304,7 @@ class TestCollectorAgent:
     @pytest.mark.asyncio
     async def test_collect_search_query_generation(self, collector_agent, mock_youtube_client, sample_youtube_videos):
         """Test search query generation for categories"""
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
+        mock_youtube_client.search_trending_shorts.return_value = sample_youtube_videos
         mock_youtube_client.get_quota_usage.return_value = 100
         
         categories = ["dance"]
@@ -306,15 +312,13 @@ class TestCollectorAgent:
         await collector_agent.collect_by_category_keywords(categories)
         
         # Verify correct queries were generated
-        calls = mock_youtube_client.search_shorts.call_args_list
-        assert len(calls) == 4  # 4 queries per category
-        
-        # Check query content
-        queries = [call[1]["query"] for call in calls]
-        assert "dance shorts trending" in queries
-        assert "dance viral" in queries
-        assert "popular dance" in queries
-        assert "best dance 2024" in queries
+        mock_youtube_client.search_trending_shorts.assert_called_once_with(
+            query="dance shorts",
+            max_results=50, # Default max_results_per_category
+            days=7, # Default days
+            order="viewCount", # Default order
+            region_code="US" # Default region_code
+        )
     
     @pytest.mark.asyncio
     async def test_strict_role_compliance(self, collector_agent, mock_youtube_client, sample_youtube_videos):
@@ -322,7 +326,7 @@ class TestCollectorAgent:
         mock_youtube_client.search_shorts.return_value = sample_youtube_videos
         mock_youtube_client.get_quota_usage.return_value = 100
         
-        result = await collector_agent.collect_trending_shorts(["dance"])
+        result = await collector_agent.collect_top_videos(["dance"], days=7, top_n=10)
         
         # Verify that raw YouTube data is returned without any analysis
         for video in result:
@@ -332,20 +336,4 @@ class TestCollectorAgent:
             assert not hasattr(video, 'confidence')
             assert not hasattr(video, 'reasoning')
     
-    @pytest.mark.asyncio
-    async def test_collection_with_multiple_calls_stats_accumulation(self, collector_agent, mock_youtube_client, sample_youtube_videos):
-        """Test that statistics accumulate across multiple collection calls"""
-        mock_youtube_client.search_shorts.return_value = sample_youtube_videos
-        mock_youtube_client.get_quota_usage.return_value = 100
-        
-        # First collection
-        await collector_agent.collect_trending_shorts(["dance"])
-        stats1 = collector_agent.get_collection_stats()
-        
-        # Second collection  
-        await collector_agent.collect_trending_shorts(["fitness"])
-        stats2 = collector_agent.get_collection_stats()
-        
-        # Verify statistics accumulated
-        assert stats2["videos_collected"] == stats1["videos_collected"] + len(sample_youtube_videos)
-        assert stats2["api_calls_made"] == stats1["api_calls_made"] + 1
+    

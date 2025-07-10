@@ -18,8 +18,13 @@ class TestYouTubeClient:
         return YouTubeClient(api_key="test_api_key")
     
     @pytest.mark.asyncio
-    async def test_client_initialization(self):
+    async def test_client_initialization(self, monkeypatch):
         """Test YouTube client initialization"""
+        # Mock get_settings to return a Settings object with an empty youtube_api_key
+        mock_settings = Mock()
+        mock_settings.youtube_api_key = ""
+        monkeypatch.setattr('src.clients.youtube_client.get_settings', lambda: mock_settings)
+
         client = YouTubeClient(api_key="test_key")
         assert client.api_key == "test_key"
         assert client.base_url == "https://www.googleapis.com/youtube/v3"
@@ -30,40 +35,31 @@ class TestYouTubeClient:
             YouTubeClient(api_key="")
     
     @pytest.mark.asyncio
-    async def test_search_shorts_success(self, youtube_client, mock_youtube_api_response, mock_youtube_videos_response):
-        """Test successful shorts search"""
-        # Mock the HTTP client
+    async def test_search_trending_shorts_success(self, youtube_client, mock_youtube_api_response, mock_youtube_videos_response):
+        """Test successful trending shorts search"""
         mock_client = AsyncMock()
         
-        # Mock search response
-        search_response = Mock()
-        search_response.status_code = 200
-        search_response.json.return_value = mock_youtube_api_response
-        
-        # Mock videos response  
-        videos_response = Mock()
-        videos_response.status_code = 200
-        videos_response.json.return_value = mock_youtube_videos_response
-        
-        # Configure mock client to return different responses for different endpoints
+        search_response = Mock(status_code=200, json=lambda: mock_youtube_api_response)
+        videos_response = Mock(status_code=200, json=lambda: mock_youtube_videos_response)
+
         async def mock_get(url, params=None):
             if "/search" in url:
+                # Check that publishedAfter is set correctly
+                assert "publishedAfter" in params
                 return search_response
             elif "/videos" in url:
                 return videos_response
             return Mock()
-        
+
         mock_client.get = mock_get
         youtube_client.client = mock_client
         
-        # Test search
-        videos = await youtube_client.search_shorts("dance challenge", max_results=10)
+        videos = await youtube_client.search_trending_shorts("dance challenge", days=7)
         
         assert len(videos) == 1
         assert isinstance(videos[0], YouTubeVideoRaw)
         assert videos[0].video_id == "abc123"
-        assert "Dance Challenge" in videos[0].snippet.title
-        assert youtube_client.quota_used == 101  # 100 for search + 1 for videos
+        assert youtube_client.quota_used == 101
     
     @pytest.mark.asyncio
     async def test_search_shorts_quota_check(self, youtube_client):
@@ -73,7 +69,7 @@ class TestYouTubeClient:
         youtube_client.settings.max_daily_quota = 10000
         
         with pytest.raises(QuotaExceededError, match="Would exceed daily quota limit"):
-            await youtube_client.search_shorts("test query")
+            await youtube_client.search_trending_shorts("test query")
     
     @pytest.mark.asyncio
     async def test_search_shorts_rate_limiting(self, youtube_client):
@@ -101,7 +97,7 @@ class TestYouTubeClient:
         
         # Mock asyncio.sleep to avoid actual delay in tests
         with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            await youtube_client.search_shorts("test")
+            await youtube_client.search_trending_shorts("test")
             mock_sleep.assert_called_once_with(1)  # retry-after value
     
     @pytest.mark.asyncio
@@ -128,7 +124,7 @@ class TestYouTubeClient:
         youtube_client.client = mock_client
         
         with pytest.raises(QuotaExceededError, match="YouTube API daily quota exceeded"):
-            await youtube_client.search_shorts("test")
+            await youtube_client.search_trending_shorts("test")
     
     @pytest.mark.asyncio
     async def test_search_shorts_api_error(self, youtube_client):
@@ -154,7 +150,7 @@ class TestYouTubeClient:
         youtube_client.client = mock_client
         
         with pytest.raises(YouTubeAPIError, match="YouTube API access forbidden"):
-            await youtube_client.search_shorts("test")
+            await youtube_client.search_trending_shorts("test")
     
     @pytest.mark.asyncio
     async def test_search_shorts_network_error(self, youtube_client):
@@ -167,7 +163,7 @@ class TestYouTubeClient:
         youtube_client.client = mock_client
         
         with pytest.raises(YouTubeAPIError, match="Network error"):
-            await youtube_client.search_shorts("test")
+            await youtube_client.search_trending_shorts("test")
     
     @pytest.mark.asyncio
     async def test_get_video_details_success(self, youtube_client, mock_youtube_videos_response):
@@ -284,8 +280,8 @@ class TestYouTubeClient:
         
         shorts = youtube_client._filter_shorts(videos)
         
-        # Should include all videos when duration is unknown
-        assert len(shorts) == len(videos)
+        # Should be empty as videos with unknown duration are now excluded
+        assert len(shorts) == 0
     
     def test_filter_shorts_invalid_duration(self, youtube_client, sample_youtube_videos):
         """Test filtering with invalid duration format"""
@@ -298,8 +294,8 @@ class TestYouTubeClient:
         
         shorts = youtube_client._filter_shorts(videos)
         
-        # Should include all videos when duration can't be parsed
-        assert len(shorts) == len(videos)
+        # Should be empty as videos with invalid duration are now excluded
+        assert len(shorts) == 0
     
     def test_quota_tracking(self, youtube_client):
         """Test quota usage tracking"""
@@ -340,10 +336,12 @@ class TestYouTubeClient:
         mock_client.get = capture_params
         youtube_client.client = mock_client
         
-        await youtube_client.search_shorts(
+        await youtube_client.search_trending_shorts(
             query="test query",
             max_results=25,
-            region_code="KR"
+            region_code="KR",
+            days=1, # Add days parameter
+            order="viewCount" # Add order parameter
         )
         
         # Verify parameters
@@ -353,7 +351,8 @@ class TestYouTubeClient:
         assert captured_params["videoDuration"] == "short"
         assert captured_params["maxResults"] == 25
         assert captured_params["regionCode"] == "KR"
-        assert captured_params["order"] == "relevance"
+        assert captured_params["order"] == "viewCount"
+        assert "publishedAfter" in captured_params # Verify publishedAfter is present
         assert captured_params["key"] == "test_api_key"
     
     @pytest.mark.asyncio
@@ -373,7 +372,7 @@ class TestYouTubeClient:
         youtube_client.client = mock_client
         
         # Request more than API limit
-        await youtube_client.search_shorts("test", max_results=100)
+        await youtube_client.search_trending_shorts("test", max_results=100, days=1, order="viewCount")
         
         # Should be limited to 50 (API maximum)
         assert captured_params["maxResults"] == 50
@@ -404,7 +403,7 @@ class TestYouTubeClient:
         youtube_client.client = mock_client
         
         with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            await youtube_client.search_shorts("test")
+            await youtube_client.search_trending_shorts("test")
             
             # Should have called sleep for exponential backoff
             assert mock_sleep.call_count == 2

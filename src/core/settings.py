@@ -60,6 +60,10 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR)"
     )
+    use_mock_llm: bool = Field(
+        default=False,
+        description="Use mock LLM provider instead of real API calls (for testing/development)"
+    )
     
     class Config:
         env_file = ".env"

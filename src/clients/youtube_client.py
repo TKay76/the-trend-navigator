@@ -3,8 +3,9 @@
 import httpx
 import asyncio
 import logging
+import re
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from ..core.settings import get_settings
 from ..core.exceptions import QuotaExceededError, YouTubeAPIError
@@ -33,7 +34,7 @@ class YouTubeClient:
         self.settings = get_settings()
         self.api_key = api_key or self.settings.youtube_api_key
         
-        if not self.api_key:
+        if not self.api_key or self.api_key == "":
             raise ValueError("YouTube API key is required")
         
         # Configure HTTP client with limits and timeout
@@ -56,42 +57,44 @@ class YouTubeClient:
         """Async context manager exit"""
         await self.client.aclose()
     
-    async def search_shorts(
+    async def search_trending_shorts(
         self, 
         query: str, 
-        max_results: int = 20,
+        max_results: int = 50,
+        days: int = 7,
+        order: str = "viewCount",
         region_code: str = "US"
     ) -> List[YouTubeVideoRaw]:
         """
-        Search for YouTube Shorts videos.
-        
+        Search for trending YouTube Shorts videos within a specific period.
+
         Args:
             query: Search query string
             max_results: Maximum number of results (1-50)
+            days: Number of past days to search within (e.g., 7 for the last week)
+            order: Sort order ('viewCount', 'relevance', 'date')
             region_code: Region code for search (ISO 3166-1 alpha-2)
             
         Returns:
-            List of raw YouTube video data
-            
-        Raises:
-            QuotaExceededError: When API quota is exceeded
-            YouTubeAPIError: For other API errors
+            List of raw YouTube video data, filtered to be actual shorts.
         """
-        # Quota Cost: 100 (expensive - use sparingly)
-        logger.info(f"Searching for shorts: '{query}' (max_results={max_results})")
-        
-        # Check quota before making expensive search call
+        logger.info(f"Searching for trending shorts: '{query}' (last {days} days, order by {order})")
+
         if self.quota_used + 100 > self.settings.max_daily_quota:
             raise QuotaExceededError(f"Would exceed daily quota limit ({self.settings.max_daily_quota})")
-        
+
+        # Calculate the 'publishedAfter' timestamp
+        published_after = (datetime.utcnow() - timedelta(days=days)).isoformat("T") + "Z"
+
         params = {
             "part": "snippet",
             "q": query,
             "type": "video",
-            "videoDuration": "short",  # Filter for shorts (<= 4 minutes)
-            "maxResults": min(max_results, 50),  # API limit
+            "videoDuration": "short",
+            "maxResults": min(max_results, 50),
             "regionCode": region_code,
-            "order": "relevance",  # Most relevant first
+            "order": order,
+            "publishedAfter": published_after,
             "key": self.api_key
         }
         
@@ -99,13 +102,13 @@ class YouTubeClient:
         if not video_ids:
             return []
         
-        # Get detailed video information (cheaper API call)
+        # Get detailed video information to verify duration
         videos = await self.get_video_details(video_ids)
         
         # Filter to only include actual shorts (duration <= 60 seconds)
         shorts = self._filter_shorts(videos)
         
-        logger.info(f"Found {len(shorts)} shorts out of {len(videos)} videos")
+        logger.info(f"Found {len(shorts)} actual shorts from {len(videos)} videos fetched.")
         return shorts
     
     async def get_video_details(self, video_ids: List[str]) -> List[YouTubeVideoRaw]:
@@ -286,39 +289,40 @@ class YouTubeClient:
             statistics=statistics
         )
     
+    def _parse_duration_to_seconds(self, duration: str) -> Optional[int]:
+        """Parse ISO 8601 duration string to seconds."""
+        if not duration or not duration.startswith('PT'):
+            return None
+
+        # Regex to parse ISO 8601 duration format (e.g., PT1M5S)
+        match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+        if not match or not any(match.groups()): # Ensure at least one group has a value
+            return None
+
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        seconds = int(match.group(3) or 0)
+        
+        return hours * 3600 + minutes * 60 + seconds
+
     def _filter_shorts(self, videos: List[YouTubeVideoRaw]) -> List[YouTubeVideoRaw]:
         """
         Filter videos to only include actual shorts (duration <= 60 seconds).
-        YouTube's videoDuration=short parameter can include videos up to 4 minutes.
+        YouTube's 'videoDuration=short' parameter can include videos up to 4 minutes.
         """
-        shorts = []
-        
+        actual_shorts = []
         for video in videos:
-            if not video.snippet.duration:
-                # If no duration info, assume it might be a short
-                shorts.append(video)
-                continue
+            duration_seconds = self._parse_duration_to_seconds(video.snippet.duration)
             
-            # Parse ISO 8601 duration (e.g., "PT1M5S" = 1 minute 5 seconds)
-            duration_str = video.snippet.duration
-            try:
-                if duration_str.startswith("PT"):
-                    # Simple parsing for shorts - looking for seconds only or < 1 minute
-                    if "H" not in duration_str and (
-                        "M" not in duration_str or 
-                        (duration_str.count("M") == 1 and int(duration_str.split("M")[0].split("T")[1]) == 0)
-                    ):
-                        shorts.append(video)
-                    elif "M" in duration_str:
-                        minutes_part = duration_str.split("M")[0].split("T")[1]
-                        if minutes_part.isdigit() and int(minutes_part) <= 1:
-                            shorts.append(video)
-            except (ValueError, IndexError) as e:
-                logger.debug(f"Could not parse duration '{duration_str}': {e}")
-                # Include if we can't parse (better to include than exclude)
-                shorts.append(video)
-        
-        return shorts
+            # We only want videos that are 60 seconds or less
+            if duration_seconds is not None and duration_seconds <= 60:
+                actual_shorts.append(video)
+            elif duration_seconds is None:
+                # If duration is unknown, we can choose to include it as a fallback.
+                # For now, we will be strict and exclude it.
+                logger.debug(f"Excluding video {video.video_id} with unknown duration.")
+
+        return actual_shorts
     
     def get_quota_usage(self) -> int:
         """Get current quota usage for this session"""

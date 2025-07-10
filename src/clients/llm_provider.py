@@ -536,20 +536,31 @@ async def analyze_keywords(ctx: RunContext[ClassificationDependencies], text: st
 
 
 # Factory function for easy instantiation
-def create_llm_provider(model_name: Optional[str] = None) -> LLMProvider:
+def create_llm_provider(model_name: Optional[str] = None):
     """
     Factory function to create LLM provider instance.
+    Automatically selects between real and mock provider based on settings.
     
     Args:
         model_name: Optional specific model name
         
     Returns:
-        Configured LLM provider
+        Configured LLM provider (real or mock)
         
     Raises:
         LLMProviderError: If provider creation fails
     """
     try:
-        return LLMProvider(model_name=model_name)
+        settings = get_settings()
+        
+        # Check if we should use mock provider
+        if settings.use_mock_llm:
+            from .mock_llm_provider import create_mock_llm_provider
+            logger.info("Using Mock LLM Provider (USE_MOCK_LLM=True)")
+            return create_mock_llm_provider(model_name=model_name)
+        else:
+            logger.info("Using Real LLM Provider (USE_MOCK_LLM=False)")
+            return LLMProvider(model_name=model_name)
+            
     except Exception as e:
         raise LLMProviderError(f"Failed to create LLM provider: {str(e)}")

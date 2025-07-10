@@ -54,13 +54,25 @@ class YouTubeTrendsCLI:
             '--categories',
             type=str,
             default="dance,fitness,tutorial",
-            help='Comma-separated list of categories to search (default: dance,fitness,tutorial)'
+            help='Comma-separated list of categories to search'
         )
         collect_parser.add_argument(
-            '--max-results',
+            '--max-per-category',
             type=int,
-            default=20,
-            help='Maximum results per category (default: 20)'
+            default=50,
+            help='Maximum videos to fetch per category for analysis (default: 50)'
+        )
+        collect_parser.add_argument(
+            '--days',
+            type=int,
+            default=7,
+            help='Number of past days to search within (default: 7)'
+        )
+        collect_parser.add_argument(
+            '--top-n',
+            type=int,
+            default=10,
+            help='Number of top videos to select for each metric (default: 10)'
         )
         collect_parser.add_argument(
             '--region',
@@ -136,10 +148,22 @@ class YouTubeTrendsCLI:
             help='Comma-separated list of categories to search'
         )
         pipeline_parser.add_argument(
-            '--max-results',
+            '--max-per-category',
             type=int,
-            default=20,
-            help='Maximum results per category'
+            default=50,
+            help='Maximum videos to fetch per category for analysis (default: 50)'
+        )
+        pipeline_parser.add_argument(
+            '--days',
+            type=int,
+            default=7,
+            help='Number of past days to search within (default: 7)'
+        )
+        pipeline_parser.add_argument(
+            '--top-n',
+            type=int,
+            default=10,
+            help='Number of top videos to select for each metric (default: 10)'
         )
         pipeline_parser.add_argument(
             '--region',
@@ -152,34 +176,29 @@ class YouTubeTrendsCLI:
     
     async def collect_command(self, args) -> None:
         """Execute collect command"""
-        print("🚀 Starting YouTube Shorts data collection...")
+        print(f"🚀 Starting Top {args.top_n} YouTube Shorts data collection from the last {args.days} days...")
         
-        # Parse categories
         categories = [cat.strip() for cat in args.categories.split(',')]
         print(f"📋 Target categories: {', '.join(categories)}")
         
         try:
-            # Create collector agent
             async with create_collector_agent() as collector:
-                print(f"📊 Collecting up to {args.max_results} videos per category...")
+                print(f"📊 Fetching up to {args.max_per_category} videos per category for analysis...")
                 
-                # Collect videos
                 videos = await collector.collect_by_category_keywords(
                     categories=categories,
-                    max_results_per_category=args.max_results,
+                    max_results_per_category=args.max_per_category,
+                    days=args.days,
+                    top_n=args.top_n,
                     region_code=args.region
                 )
                 
-                # Get collection statistics
                 stats = collector.get_collection_stats()
-                
-                # Save results
                 self._save_videos_to_file(videos, args.output)
                 
-                print("✅ Collection complete!")
+                print("\n✅ Collection complete!")
                 print("📈 Statistics:")
-                print(f"   • Videos collected: {len(videos)}")
-                print(f"   • API calls made: {stats.get('api_calls_made', 0)}")
+                print(f"   • Unique top videos collected: {len(videos)}")
                 print(f"   • Quota used: {stats.get('quota_used', 0)}")
                 print(f"   • Output saved to: {args.output}")
                 
@@ -299,7 +318,9 @@ class YouTubeTrendsCLI:
         # Create args object for collect command
         collect_args = argparse.Namespace(
             categories=args.categories,
-            max_results=args.max_results,
+            max_per_category=args.max_per_category,
+            days=args.days,
+            top_n=args.top_n,
             region=args.region,
             output="collected_videos.json"
         )

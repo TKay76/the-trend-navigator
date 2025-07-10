@@ -45,42 +45,39 @@ class CollectorAgent:
         
         logger.info(f"[{self.agent_name}] Agent initialized")
     
-    async def collect_trending_shorts(
+    async def collect_top_videos(
         self, 
         search_queries: List[str],
-        max_results_per_query: int = 20,
+        max_results_per_query: int = 50,
+        days: int = 7,
+        top_n: int = 10,
         region_code: str = "US"
     ) -> List[YouTubeVideoRaw]:
         """
-        Collect trending YouTube Shorts based on search queries.
-        
-        STRICT ROLE: Only collection, no analysis or categorization.
-        
+        Collects top N trending videos for multiple search queries based on 
+        view count, like count, and comment count.
+
         Args:
-            search_queries: List of search terms for video discovery
-            max_results_per_query: Maximum results per search query
-            region_code: Region code for localized results
-            
+            search_queries: List of search terms.
+            max_results_per_query: Max videos to fetch per query for analysis.
+            days: The number of past days to search within.
+            top_n: The number of top videos to select for each metric.
+            region_code: Region code for localized results.
+
         Returns:
-            List of raw YouTube video data
-            
-        Raises:
-            YouTubeAPIError: If API calls fail
-            QuotaExceededError: If quota limits are exceeded
+            A consolidated list of unique top videos.
         """
-        logger.info(f"[{self.agent_name}] Starting collection for {len(search_queries)} queries")
+        logger.info(f"[{self.agent_name}] Starting top video collection for {len(search_queries)} queries.")
         
-        # Initialize YouTube client if needed
         if self.youtube_client is None:
             self.youtube_client = YouTubeClient()
-        
+
         all_videos = []
-        collected_video_ids = set()  # Prevent duplicates
-        
-        # Collect videos for each search query
+        collected_video_ids = set()
+
         for i, query in enumerate(search_queries):
             try:
-                logger.info(f"[{self.agent_name}] Processing query {i+1}/{len(search_queries)}: '{query}'")
+                logger.info(f"[{self.agent_name}] Query {i+1}/{len(search_queries)}: '{query}'")
                 
                 # Check quota before making expensive search call
                 current_quota = self.youtube_client.get_quota_usage()
@@ -88,48 +85,67 @@ class CollectorAgent:
                     logger.warning(f"[{self.agent_name}] Quota limit approaching, stopping collection")
                     break
                 
-                # Search for videos
-                videos = await self.youtube_client.search_shorts(
+                videos = await self.youtube_client.search_trending_shorts(
                     query=query,
                     max_results=max_results_per_query,
+                    days=days,
+                    order="viewCount",
                     region_code=region_code
                 )
                 
-                # Filter out duplicates
-                unique_videos = []
                 for video in videos:
                     if video.video_id not in collected_video_ids:
-                        unique_videos.append(video)
+                        all_videos.append(video)
                         collected_video_ids.add(video.video_id)
-                
-                all_videos.extend(unique_videos)
-                
-                # Update statistics
-                self.collection_stats["videos_collected"] = (self.collection_stats["videos_collected"] or 0) + len(unique_videos)
-                self.collection_stats["api_calls_made"] = (self.collection_stats["api_calls_made"] or 0) + 1
-                
-                logger.info(f"[{self.agent_name}] Collected {len(unique_videos)} unique videos from query '{query}'")
-                
-                # Rate limiting: delay between requests to be respectful
-                if i < len(search_queries) - 1:  # Don't delay after the last query
-                    delay = max(1, 60 / self.settings.rate_limit_per_second)
-                    logger.debug(f"[{self.agent_name}] Waiting {delay} seconds before next query")
-                    await asyncio.sleep(delay)
-                
+
             except QuotaExceededError as e:
-                logger.error(f"[{self.agent_name}] Quota exceeded: {e}")
+                logger.error(f"[{self.agent_name}] Quota exceeded: {e}. Stopping collection.")
                 break
-                
             except YouTubeAPIError as e:
                 logger.error(f"[{self.agent_name}] API error for query '{query}': {e}")
-                continue  # Continue with next query
+                continue
+
+        if not all_videos:
+            logger.warning(f"[{self.agent_name}] No videos found for any query.")
+            return []
+
+        # --- Sorting and Filtering Logic ---
+        logger.info(f"[{self.agent_name}] Sorting {len(all_videos)} videos to find top {top_n} for each metric.")
+
+        # Sort by view count
+        top_by_views = sorted(
+            [v for v in all_videos if v.statistics],
+            key=lambda v: v.statistics.view_count, 
+            reverse=True
+        )[:top_n]
+
+        # Sort by like count
+        top_by_likes = sorted(
+            [v for v in all_videos if v.statistics],
+            key=lambda v: v.statistics.like_count, 
+            reverse=True
+        )[:top_n]
+
+        # Sort by comment count
+        top_by_comments = sorted(
+            [v for v in all_videos if v.statistics],
+            key=lambda v: v.statistics.comment_count, 
+            reverse=True
+        )[:top_n]
+
+        # Consolidate and remove duplicates
+        final_top_videos = {}
+        for video in top_by_views + top_by_likes + top_by_comments:
+            final_top_videos[video.video_id] = video
         
-        # Update final statistics
+        final_list = list(final_top_videos.values())
+        logger.info(f"[{self.agent_name}] Collection complete. Found {len(final_list)} unique top videos.")
+        
+        self.collection_stats["videos_collected"] = len(final_list)
         self.collection_stats["quota_used"] = self.youtube_client.get_quota_usage()
         self.collection_stats["last_collection"] = datetime.now()
-        
-        logger.info(f"[{self.agent_name}] Collection complete: {len(all_videos)} total videos collected")
-        return all_videos
+
+        return final_list
     
     async def collect_by_request(self, request: CollectionRequest) -> List[YouTubeVideoRaw]:
         """
@@ -143,7 +159,7 @@ class CollectorAgent:
         """
         logger.info(f"[{self.agent_name}] Processing collection request with {len(request.search_queries)} queries")
         
-        return await self.collect_trending_shorts(
+        return await self.collect_top_videos(
             search_queries=request.search_queries,
             max_results_per_query=request.max_results_per_query,
             region_code=request.region_code or "US"
@@ -152,39 +168,33 @@ class CollectorAgent:
     async def collect_by_category_keywords(
         self, 
         categories: List[str],
-        max_results_per_category: int = 20,
+        max_results_per_category: int = 50,
+        days: int = 7,
+        top_n: int = 10,
         region_code: str = "US"
     ) -> List[YouTubeVideoRaw]:
         """
-        Collect videos by generating search queries for each category.
-        
+        Collects top videos by generating search queries for each category.
+
         Args:
-            categories: List of category names to search for
-            max_results_per_category: Maximum results per category
-            region_code: Region code for search
-            
+            categories: List of category names to search for.
+            max_results_per_category: Max videos to fetch per category for analysis.
+            days: The number of past days to search within.
+            top_n: The number of top videos to select for each metric.
+            region_code: Region code for search.
+
         Returns:
-            List of collected video data
+            A list of top collected video data.
         """
-        logger.info(f"[{self.agent_name}] Collecting videos for categories: {categories}")
+        logger.info(f"[{self.agent_name}] Collecting top videos for categories: {categories}")
         
-        # Generate search queries for each category
-        search_queries = []
-        for category in categories:
-            # Create multiple search variations for better coverage
-            queries = [
-                f"{category} shorts trending",
-                f"{category} viral",
-                f"popular {category}",
-                f"best {category} 2024"
-            ]
-            search_queries.extend(queries)
+        search_queries = [f"{category} shorts" for category in categories]
         
-        logger.debug(f"[{self.agent_name}] Generated {len(search_queries)} search queries")
-        
-        return await self.collect_trending_shorts(
+        return await self.collect_top_videos(
             search_queries=search_queries,
-            max_results_per_query=max_results_per_category // 4,  # Divide by 4 queries per category
+            max_results_per_query=max_results_per_category,
+            days=days,
+            top_n=top_n,
             region_code=region_code
         )
     
