@@ -1,36 +1,436 @@
 {
-  "timestamp": "2025-07-10T12:24:20.270226",
-  "total_videos": 3,
+  "timestamp": "2025-07-10T12:48:48.168490",
+  "total_videos": 43,
   "classified_videos": [
     {
-      "video_id": "3Sj2te5V3lM",
-      "title": "Dancing Tourists? 💃 Venetian Edition 🇮🇹🎶#dance #shorts",
+      "video_id": "88C4fc3Ka-k",
+      "title": "Qual animal vai quebrar a barreira?!😱 #shorts #challenge",
       "category": "Challenge",
       "confidence": 0.3,
       "reasoning": "Fallback classification due to parsing error",
-      "view_count": 5010992,
-      "published_at": "2025-07-08 09:28:15+00:00",
+      "view_count": 72890686,
+      "published_at": "2025-07-04 00:03:06+00:00",
+      "channel_title": "Gabrielmiranda_ofc"
+    },
+    {
+      "video_id": "5I7dRmkXWY4",
+      "title": "WHO CAN GET THE COIN CHALLENGE! #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 46874601,
+      "published_at": "2025-07-05 13:46:02+00:00",
+      "channel_title": "Double Date"
+    },
+    {
+      "video_id": "8jh72Mdj4Yo",
+      "title": "Venice edition 🇮🇹 ❤️‍🔥 #venice #shorts  @_miss_tais_ @markchirkin",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 32415961,
+      "published_at": "2025-07-03 15:09:15+00:00",
       "channel_title": "YANA CHIRKINA"
     },
     {
-      "video_id": "MIi_h1ZsGww",
-      "title": "tung tung tung dance #shorts",
+      "video_id": "QtDwwr6dWj4",
+      "title": "BEHIND THE SCENES! - Double Date #shorts",
       "category": "Challenge",
       "confidence": 0.3,
       "reasoning": "Fallback classification due to parsing error",
-      "view_count": 3859852,
-      "published_at": "2025-07-09 04:02:59+00:00",
-      "channel_title": "sony23 tv"
+      "view_count": 22904236,
+      "published_at": "2025-07-04 10:00:52+00:00",
+      "channel_title": "Double Date"
     },
     {
-      "video_id": "18uKirHWOHY",
-      "title": "Dance Break… Venetian Edition 🇮🇹🎶🕺 #dance #shorts #venice",
+      "video_id": "6H4LlnrGy5Q",
+      "title": "WHO CAN GET THE COIN CHALLENGE! #shorts",
       "category": "Challenge",
       "confidence": 0.3,
       "reasoning": "Fallback classification due to parsing error",
-      "view_count": 2264950,
-      "published_at": "2025-07-08 13:24:29+00:00",
+      "view_count": 21911462,
+      "published_at": "2025-07-05 20:50:00+00:00",
+      "channel_title": "Double Date"
+    },
+    {
+      "video_id": "dWFASBOoh2w",
+      "title": "Build a Queen Run Challenge with Tung Tung Tung Sahur #shorts #sprunki #cappuccinoassassino",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 21819807,
+      "published_at": "2025-07-05 14:00:55+00:00",
+      "channel_title": "Wee Animation"
+    },
+    {
+      "video_id": "3-L0TPl7KlE",
+      "title": "💪 Try your luck 🍀 Brain-rot challenge #challange #shorts #italianbrainrot #brainrot",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 18063137,
+      "published_at": "2025-07-05 22:55:31+00:00",
+      "channel_title": "ALEX KING"
+    },
+    {
+      "video_id": "Gnpon_qdZVE",
+      "title": "Qual bicho vai estourar o balão?!😱 #shorts #challenge",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 17638673,
+      "published_at": "2025-07-05 00:57:29+00:00",
+      "channel_title": "Gabrielmiranda_ofc"
+    },
+    {
+      "video_id": "00zHgkAxnuA",
+      "title": "Sukhasan Star ❤️ Anaya ki mammi 🫣 Worng hand challenge 🔥 #shorts #anaya #viral #trending",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 17264287,
+      "published_at": "2025-07-03 07:34:42+00:00",
+      "channel_title": "Vfx Jaan8"
+    },
+    {
+      "video_id": "RBx6GynHaXA",
+      "title": "Pirates Italian Brainrot HARDEST Challenge! #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 9954564,
+      "published_at": "2025-07-03 08:23:19+00:00",
+      "channel_title": "BabsGD"
+    },
+    {
+      "video_id": "zmrgY_6Ti8Y",
+      "title": "Which pillow is good?😱😍#shorts #viral",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 7901096,
+      "published_at": "2025-07-05 12:35:22+00:00",
+      "channel_title": "It's your Boii"
+    },
+    {
+      "video_id": "kCrfnGtadP0",
+      "title": "Thanos plays Speed Challenge ☢️#roblox #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 6703580,
+      "published_at": "2025-07-03 23:30:41+00:00",
+      "channel_title": "BaconRoblox"
+    },
+    {
+      "video_id": "4wDaQTi8weU",
+      "title": "Water trickshots challenge 💦😲",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 6340345,
+      "published_at": "2025-07-03 06:34:46+00:00",
+      "channel_title": "GoalAntics"
+    },
+    {
+      "video_id": "4Jkg3h74egU",
+      "title": "철봉 100초 매달리기 도전의 진실",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 5842653,
+      "published_at": "2025-07-04 08:31:53+00:00",
+      "channel_title": "정보온"
+    },
+    {
+      "video_id": "P2fnXovqm0A",
+      "title": "Try Not to Laugh Challenge 1258 🤣 #funny ⁠#shorts #viral",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 5614543,
+      "published_at": "2025-07-03 13:35:00+00:00",
+      "channel_title": "Jeffrey X"
+    },
+    {
+      "video_id": "4Qd3lCGBmiY",
+      "title": "Left or Right Get ready challenge #shorts #viralvideo #ytshorts #shortsfeed",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 5265217,
+      "published_at": "2025-07-03 14:47:00+00:00",
+      "channel_title": "Juice Making Channel"
+    },
+    {
+      "video_id": "3aojC1D0gMI",
+      "title": "COLOR SHOPPING CHALLENGE with @MitaliThisSide 🛍️💰 #challenge #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4873601,
+      "published_at": "2025-07-04 09:59:44+00:00",
+      "channel_title": "Advika Singh"
+    },
+    {
+      "video_id": "WEaDjg07NbM",
+      "title": "I didn't expect this🤣 #shorts #challenge #couple",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4831548,
+      "published_at": "2025-07-05 14:32:53+00:00",
+      "channel_title": "【K&J】俺のじゅり"
+    },
+    {
+      "video_id": "B-zWU8yvqw4",
+      "title": "Natin Marli Mithi Dj Mix Viral Craze Rope challenge #shorts #magic #viral #challenge",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4782076,
+      "published_at": "2025-07-05 11:05:59+00:00",
+      "channel_title": "GrowTube Pro • 829K views • 16 hours ago\n\n\n..."
+    },
+    {
+      "video_id": "i9aZZxG9Ejw",
+      "title": "Sand Jumping Challenge, Who Can Get An Iphone! #Funnyfamily #Partygames#Challenge",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4749515,
+      "published_at": "2025-07-04 10:01:29+00:00",
+      "channel_title": "Family Games Media"
+    },
+    {
+      "video_id": "ZUsOdqNI8hg",
+      "title": "Italian Zombie $1K Challenge 🧟",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4472102,
+      "published_at": "2025-07-04 21:35:21+00:00",
+      "channel_title": "Chief Brioso"
+    },
+    {
+      "video_id": "6rJidxVkarY",
+      "title": "BALL SIT, NO LOOK CHALLENGE! 😩 - #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4164055,
+      "published_at": "2025-07-03 14:40:11+00:00",
+      "channel_title": "Double Date"
+    },
+    {
+      "video_id": "CK2YlF_NHqU",
+      "title": "🐱Italian brainrot challenge/who won?🏆 #challenge #italianbrainrot #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 4084683,
+      "published_at": "2025-07-04 19:04:38+00:00",
+      "channel_title": "JULIA xS"
+    },
+    {
+      "video_id": "o9tHTez3Xqs",
+      "title": "Try Not to Laugh Challenge 1264 🤣 #funny ⁠#shorts #viral",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3637521,
+      "published_at": "2025-07-06 13:43:32+00:00",
+      "channel_title": "Jeffrey X"
+    },
+    {
+      "video_id": "84g2vYvSquo",
+      "title": "Cricketers favourite food 🍛 #shorts #challenge #cricket #food",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3477673,
+      "published_at": "2025-07-03 10:57:37+00:00",
+      "channel_title": "Your brother "
+    },
+    {
+      "video_id": "G5Sff8-qCJ8",
+      "title": "Thanos plays Speed Challenge 😱#roblox #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3353610,
+      "published_at": "2025-07-05 22:06:07+00:00",
+      "channel_title": "BaconRoblox"
+    },
+    {
+      "video_id": "mYr8twiYLvk",
+      "title": "THAT WAS CLOSE… 😅 #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3330193,
+      "published_at": "2025-07-04 14:25:14+00:00",
+      "channel_title": "Jasmin and James"
+    },
+    {
+      "video_id": "VeRyUSsRzOE",
+      "title": "Like this if you’re older than 1 🐱🚰 #shorts #challenge",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3040422,
+      "published_at": "2025-07-04 09:47:31+00:00",
       "channel_title": "YANA CHIRKINA"
+    },
+    {
+      "video_id": "l4yWhPPfXBw",
+      "title": "We All Know Who’s Gonna Win This One🤣 #shorts #couple #challenge #funny #relationship",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3009581,
+      "published_at": "2025-07-04 15:14:35+00:00",
+      "channel_title": "Mridul and Aditya"
+    },
+    {
+      "video_id": "b3Lxol6JNaw",
+      "title": "emoji singing challenge‼️ w/ @tyler_warwick #shorts  #singingchallenge #family #prettylittlebaby",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 3003401,
+      "published_at": "2025-07-03 23:14:25+00:00",
+      "channel_title": "Sharpe Family Singers"
+    },
+    {
+      "video_id": "hULGBrC2GTU",
+      "title": "one day fried rice food challenge😍#food #shorts #challenge #friedrice #tiyavlogs21 #foodie #tamil",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2572751,
+      "published_at": "2025-07-03 10:29:42+00:00",
+      "channel_title": "Tiya Vlogs"
+    },
+    {
+      "video_id": "gODJ3wscM5k",
+      "title": "💥🐛புளு Chicken சாப்ட்ருக்கிங்களா..!!🍗| Green Colour Food Challenge | #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2396011,
+      "published_at": "2025-07-04 09:01:23+00:00",
+      "channel_title": "MONA - VLOGS"
+    },
+    {
+      "video_id": "Rhhc7Pe2wQw",
+      "title": "21 Days Challenge to Become Topper #shorts #studytips #students #jee #neet",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2970906,
+      "published_at": "2025-07-04 12:35:41+00:00",
+      "channel_title": "Aishwarya NIT Rourkela"
+    },
+    {
+      "video_id": "cX4J9Pb3f7s",
+      "title": "Candle Challenge INTENSE 🔥🌀| #shorts | Wait For It",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2495774,
+      "published_at": "2025-07-04 03:45:08+00:00",
+      "channel_title": "Wait For It"
+    },
+    {
+      "video_id": "lcJSZMEaOeQ",
+      "title": "QUANTOS PALITOS, MACARRÕES, LÁPIS E ELÁSTICOS AGUENTAM O MEU PESO? #shorts #challenge #videoviral",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 1363439,
+      "published_at": "2025-07-04 00:57:39+00:00",
+      "channel_title": "Junão"
+    },
+    {
+      "video_id": "JwUCMCZ6Gmg",
+      "title": "웃음참기 챌린지 247 ‼️ #funny #shorts #viralvideo",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 1648199,
+      "published_at": "2025-07-04 12:00:42+00:00",
+      "channel_title": "해피빈"
+    },
+    {
+      "video_id": "vDZ_KWasems",
+      "title": "24hrs cycling challenge 🥺🙏#shorts #shortsfeed #trending #challenge #bicycle #maduraimakkanss #viral",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 1836835,
+      "published_at": "2025-07-03 12:01:47+00:00",
+      "channel_title": "Madurai Makkanss"
+    },
+    {
+      "video_id": "Zj9skoYzGjM",
+      "title": "India vs Pakistan 😱 #shorts #challenge",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 1744821,
+      "published_at": "2025-07-03 14:30:34+00:00",
+      "channel_title": "Thalune"
+    },
+    {
+      "video_id": "JhUEH4FfcHg",
+      "title": "“I’ll Be Back” 💀🚶 #shorts #youtubeshorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2053891,
+      "published_at": "2025-07-03 19:15:44+00:00",
+      "channel_title": "ALI CHEESER"
+    },
+    {
+      "video_id": "EX5UA-MyTIc",
+      "title": "ROCK, PAPER, SCISSORS CHALLENGE! BOYS VS GIRLS - #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 1642795,
+      "published_at": "2025-07-03 11:10:00+00:00",
+      "channel_title": "Double Date"
+    },
+    {
+      "video_id": "Ho3tSvitIxY",
+      "title": "코인으로 365일 도전! 💼⏱️ #shorts #viralvideo",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 21963,
+      "published_at": "2025-07-03 07:56:20+00:00",
+      "channel_title": "올리버 인사이트"
+    },
+    {
+      "video_id": "HEgdh8CsYZw",
+      "title": "Italian Brainrot Pirates vs $1,000 Challenge #shorts",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2970818,
+      "published_at": "2025-07-03 12:05:54+00:00",
+      "channel_title": "ExcellentGD"
+    },
+    {
+      "video_id": "-IRoAqVa5Lg",
+      "title": "Hold The Bucket Challenge !🎁💪 #shorts #shots #yamandanz",
+      "category": "Challenge",
+      "confidence": 0.3,
+      "reasoning": "Fallback classification due to parsing error",
+      "view_count": 2265965,
+      "published_at": "2025-07-03 12:03:00+00:00",
+      "channel_title": "Yamandanz Official"
     }
   ]
 }
