@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  youtube-trend-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: youtube-trend-analyzer-dev
+    restart: unless-stopped
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=development
+    env_file:
+      - .env
+    volumes:
+      # Mount source code for development
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./configs:/app/configs
+      # Mount data and logs
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Cache directories
+      - youtube-analyzer-cache:/app/.cache
+    ports:
+      - "8000:8000"
+    networks:
+      - youtube-analyzer-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Redis for future caching needs
+  redis:
+    image: redis:7-alpine
+    container_name: youtube-analyzer-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - youtube-analyzer-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  youtube-analyzer-network:
+    driver: bridge
+    name: youtube-analyzer-network
+
+volumes:
+  youtube-analyzer-cache:
+    name: youtube-analyzer-cache
+  redis-data:
+    name: youtube-analyzer-redis-data

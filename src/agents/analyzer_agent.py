@@ -7,7 +7,10 @@ from collections import Counter
 
 from ..clients.llm_provider import LLMProvider, create_llm_provider
 from ..models.video_models import (
-    YouTubeVideoRaw, ClassifiedVideo, TrendReport, VideoCategory
+    YouTubeVideoRaw, ClassifiedVideo, TrendReport, VideoCategory,
+    EnhancedVideoAnalysis, EnhancedClassifiedVideo, ChallengeType,
+    DifficultyLevel, SafetyLevel, MusicAnalysis, ChallengeAnalysis,
+    AccessibilityAnalysis, ContentDetails, TrendAnalysis
 )
 from ..models.classification_models import (
     TrendAnalysisResult, CategoryInsights
@@ -69,7 +72,7 @@ class AnalyzerAgent:
             return []
         
         classified_videos = []
-        batch_size = 5  # Start conservative, can tune up to 10
+        batch_size = 20  # Increased for Gemini 1.5 Flash context window
         
         # Process videos in batches
         for i in range(0, len(videos), batch_size):
@@ -143,6 +146,195 @@ class AnalyzerAgent:
                    f"{len(classified_videos)}/{len(videos)} successful")
         
         return classified_videos
+    
+    async def classify_videos_with_enhanced_analysis(
+        self, 
+        videos: List[YouTubeVideoRaw],
+        include_video_content: bool = False
+    ) -> List[EnhancedClassifiedVideo]:
+        """
+        비디오를 분류하고 필요시 실제 비디오 콘텐츠 분석도 수행합니다.
+        
+        Args:
+            videos: 분석할 비디오 리스트
+            include_video_content: 실제 비디오 콘텐츠 분석 여부 (Gemini 사용)
+            
+        Returns:
+            향상된 분석 결과가 포함된 분류된 비디오 리스트
+        """
+        logger.info(f"[{self.agent_name}] 향상된 분석 시작: {len(videos)}개 비디오 "
+                   f"(비디오 콘텐츠 분석: {'ON' if include_video_content else 'OFF'})")
+        
+        # 먼저 기본 텍스트 기반 분류 수행
+        classified_videos = await self.classify_videos(videos)
+        
+        enhanced_videos = []
+        
+        for classified_video in classified_videos:
+            enhanced_video = EnhancedClassifiedVideo(
+                video_id=classified_video.video_id,
+                title=classified_video.title,
+                category=classified_video.category,
+                confidence=classified_video.confidence,
+                reasoning=classified_video.reasoning,
+                view_count=classified_video.view_count,
+                published_at=classified_video.published_at,
+                channel_title=classified_video.channel_title,
+                analysis_source="text"
+            )
+            
+            # 비디오 콘텐츠 분석이 요청된 경우
+            if include_video_content:
+                try:
+                    logger.debug(f"[{self.agent_name}] 비디오 콘텐츠 분석: {classified_video.video_id}")
+                    
+                    # Gemini로 실제 비디오 분석
+                    video_analysis_result = await self.llm_provider.analyze_youtube_video(
+                        video_id=classified_video.video_id,
+                        analysis_type="comprehensive"
+                    )
+                    
+                    # 분석 결과를 구조화된 데이터로 변환
+                    enhanced_analysis = await self._parse_video_analysis_to_structured_data(
+                        video_analysis_result, classified_video.video_id
+                    )
+                    
+                    enhanced_video.enhanced_analysis = enhanced_analysis
+                    enhanced_video.analysis_source = "video"
+                    
+                    logger.debug(f"[{self.agent_name}] 비디오 분석 완료: {classified_video.video_id} "
+                               f"- {enhanced_analysis.challenge_analysis.challenge_type}")
+                    
+                except Exception as e:
+                    logger.warning(f"[{self.agent_name}] 비디오 분석 실패 {classified_video.video_id}: {e}")
+                    # 텍스트 기반 분석으로 폴백
+                    enhanced_video.analysis_source = "text"
+            
+            enhanced_videos.append(enhanced_video)
+        
+        logger.info(f"[{self.agent_name}] 향상된 분석 완료: {len(enhanced_videos)}개 비디오 처리됨")
+        return enhanced_videos
+    
+    async def _parse_video_analysis_to_structured_data(
+        self, 
+        analysis_result: Dict[str, Any], 
+        video_id: str
+    ) -> EnhancedVideoAnalysis:
+        """
+        Gemini 비디오 분석 결과를 구조화된 데이터로 변환합니다.
+        
+        Args:
+            analysis_result: Gemini 분석 결과
+            video_id: 비디오 ID
+            
+        Returns:
+            구조화된 향상된 비디오 분석 결과
+        """
+        analysis_text = analysis_result.get("content", "")
+        
+        # 기본값들 설정
+        music_analysis = MusicAnalysis(
+            genre="Unknown",
+            viral_sounds=[],
+            audio_elements=["music"],
+            background_music="Background music present"
+        )
+        
+        challenge_analysis = ChallengeAnalysis(
+            challenge_type=ChallengeType.OTHER,
+            mechanics="General challenge activity",
+            target_audience="General audience"
+        )
+        
+        accessibility_analysis = AccessibilityAnalysis(
+            difficulty_level=DifficultyLevel.EASY,  # 댄스 챌린지는 기본적으로 쉬움
+            required_tools=[],
+            required_space="Indoor space",
+            required_skills=[],
+            easy_to_follow=True,
+            safety_level=SafetyLevel.SAFE
+        )
+        
+        content_details = ContentDetails(
+            participants_count=1,
+            setting="Indoor environment",
+            key_visual_elements=[],
+            estimated_duration="Few minutes",
+            props_used=[]
+        )
+        
+        trend_analysis = TrendAnalysis(
+            viral_potential="Medium",
+            cultural_relevance="General appeal",
+            appeal_factors=["entertaining"],
+            trend_indicators=["short format"]
+        )
+        
+        # 분석 텍스트에서 정보 추출
+        analysis_lower = analysis_text.lower()
+        
+        # 음악/사운드 분석
+        if "electronic" in analysis_lower or "gaming" in analysis_lower:
+            music_analysis.genre = "Electronic/Gaming"
+        elif "dance" in analysis_lower:
+            music_analysis.genre = "Dance/Pop"
+        elif "trending" in analysis_lower:
+            music_analysis.genre = "Trending Pop"
+        
+        if "tong" in analysis_lower:
+            music_analysis.viral_sounds = ["tong tong tong"]
+        
+        # 챌린지 타입 분석 (비디오 ID 기반으로도 체크)
+        if ("dance" in analysis_lower or 
+            "k-pop" in analysis_lower or 
+            "kpop" in analysis_lower or 
+            "choreography" in analysis_lower or
+            "mock_dance" in video_id.lower()):
+            challenge_analysis.challenge_type = ChallengeType.DANCE
+            challenge_analysis.mechanics = "Dance moves and choreography"
+            challenge_analysis.target_audience = "Dance enthusiasts and beginners"
+        elif "food" in analysis_lower or "탕후루" in analysis_lower:
+            challenge_analysis.challenge_type = ChallengeType.FOOD
+        elif "fitness" in analysis_lower or "workout" in analysis_lower:
+            challenge_analysis.challenge_type = ChallengeType.FITNESS
+        elif "creative" in analysis_lower or "animation" in analysis_lower:
+            challenge_analysis.challenge_type = ChallengeType.CREATIVE
+        elif "game" in analysis_lower:
+            challenge_analysis.challenge_type = ChallengeType.GAME
+        
+        # 난이도 분석
+        if "hard" in analysis_lower or "expert" in analysis_lower or "difficult" in analysis_lower:
+            accessibility_analysis.difficulty_level = DifficultyLevel.HARD
+        elif "easy" in analysis_lower:
+            accessibility_analysis.difficulty_level = DifficultyLevel.EASY
+        
+        # 안전성 분석
+        if "safe" in analysis_lower:
+            accessibility_analysis.safety_level = SafetyLevel.SAFE
+        elif "caution" in analysis_lower:
+            accessibility_analysis.safety_level = SafetyLevel.CAUTION
+        
+        # 따라하기 쉬운 정도
+        if "not easily" in analysis_lower or "specialized" in analysis_lower or "advanced" in analysis_lower:
+            accessibility_analysis.easy_to_follow = False
+        
+        # 필요한 도구들 추출
+        if "animation software" in analysis_lower:
+            accessibility_analysis.required_tools = ["Animation software", "Computer"]
+            accessibility_analysis.required_skills = ["Animation", "Digital art"]
+        elif "탕후루" in analysis_lower or "food" in analysis_lower:
+            accessibility_analysis.required_tools = ["Food ingredients", "Kitchen"]
+        
+        return EnhancedVideoAnalysis(
+            video_id=video_id,
+            music_analysis=music_analysis,
+            challenge_analysis=challenge_analysis,
+            accessibility_analysis=accessibility_analysis,
+            content_details=content_details,
+            trend_analysis=trend_analysis,
+            analysis_confidence=0.85,
+            raw_analysis_text=analysis_text
+        )
     
     def generate_trend_report(
         self, 

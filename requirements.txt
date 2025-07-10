@@ -26,3 +26,21 @@ ruff
 
 # Additional utilities
 typing-extensions
+
+# System monitoring and operations
+psutil
+
+# Process management
+supervisor
+
+# Enhanced HTTP client
+uvicorn[standard]
+
+# Future web interface framework
+fastapi
+
+# Redis client for caching
+redis
+
+# Google Generative AI for video analysis
+google-generativeai

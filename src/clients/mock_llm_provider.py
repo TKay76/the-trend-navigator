@@ -3,7 +3,7 @@
 import logging
 import asyncio
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 from ..models.video_models import VideoCategory, YouTubeVideoRaw
@@ -204,6 +204,187 @@ class MockLLMProvider:
         """Reset the classification counter (useful for testing)"""
         self._classification_counter = 0
         logger.debug("Mock LLM provider counter reset")
+    
+    async def analyze_youtube_video(self, video_id: str, analysis_type: str = "comprehensive") -> Dict[str, Any]:
+        """
+        Mock YouTube video analysis that returns sample enhanced analysis data.
+        
+        Args:
+            video_id: YouTube video ID
+            analysis_type: Type of analysis ("comprehensive", "challenge", "quick")
+            
+        Returns:
+            Mock analysis response with enhanced data
+        """
+        # Add small delay to simulate real API call
+        await asyncio.sleep(0.2)
+        
+        logger.debug(f"Mock analyzing YouTube video: {video_id} (type: {analysis_type})")
+        
+        # Sample mock analysis data based on known video IDs
+        mock_analyses = {
+            # 댄스 챌린지 관련 Mock 데이터들
+            "mock_dance_01": {
+                "comprehensive": """
+                **Music/Sound Analysis:**
+                - Background music: K-pop upbeat track with catchy hooks
+                - Viral sounds: "Attention attention" vocal hooks, electronic beats
+                - Audio elements: Clear vocals, electronic music, clap sounds
+                
+                **Challenge Type Classification:**
+                - Challenge category: Dance challenge
+                - Challenge mechanics: Simple 4-count dance moves, hand gestures and body movements
+                - Target audience: K-pop fans, dance beginners, teens and young adults
+                
+                **Accessibility & Difficulty:**
+                - Difficulty level: Easy
+                - Required tools: None - just your body and space to move
+                - Required space: Small indoor space (2x2 meters)
+                - Average person follow along: Yes - designed for beginners
+                - Safety considerations: Safe (basic movements)
+                
+                **Content Details:**
+                - Participants: 1 dancer demonstrating
+                - Setting: Clean dance studio with mirrors
+                - Key visual elements: Clear step-by-step breakdown, slow motion sections
+                - Estimated duration: 5-10 minutes to learn
+                
+                **Trend Analysis:**
+                - Viral potential: High (K-pop + easy choreography)
+                - Cultural relevance: Current K-pop trend
+                - Appeal factors: Catchy music, simple moves, trending artist
+                """,
+                "challenge": """
+                This is an Easy K-pop Dance Challenge.
+                Difficulty: Easy - basic moves anyone can follow.
+                Requirements: Just your body and small space to dance.
+                Music: NewJeans "Attention" - very catchy and trending.
+                Accessibility: Perfect for beginners - step by step tutorial.
+                Safety: Very safe (simple arm and body movements).
+                """
+            },
+            "mock_dance_02": {
+                "comprehensive": """
+                **Music/Sound Analysis:**
+                - Background music: Trending TikTok audio with electronic beats
+                - Viral sounds: Popular TikTok sound bite, rhythmic claps
+                - Audio elements: Electronic music, voice instructions, beat drops
+                
+                **Challenge Type Classification:**
+                - Challenge category: Dance challenge
+                - Challenge mechanics: Simple TikTok-style dance with 3 main moves
+                - Target audience: Social media users, teenagers, beginners
+                
+                **Accessibility & Difficulty:**
+                - Difficulty level: Easy
+                - Required tools: Smartphone for recording (optional)
+                - Required space: Small room space
+                - Average person follow along: Yes - very beginner friendly
+                - Safety considerations: Safe (low impact movements)
+                
+                **Content Details:**
+                - Participants: 1 person teaching the dance
+                - Setting: Bedroom/home environment
+                - Key visual elements: Clear instruction, multiple angles shown
+                - Estimated duration: 3-5 minutes to master
+                
+                **Trend Analysis:**
+                - Viral potential: Very high (TikTok algorithm friendly)
+                - Cultural relevance: Current social media trends
+                - Appeal factors: Quick to learn, shareable, trending audio
+                """
+            },
+            "dWFASBOoh2w": {
+                "comprehensive": """
+                **Music/Sound Analysis:**
+                - Background music: Upbeat electronic music with gaming elements
+                - Viral sounds: "tong tong tong" sound effects, repetitive beats
+                - Audio elements: Sound effects, electronic music, no vocals
+                
+                **Challenge Type Classification:**
+                - Challenge category: Creative/Animation challenge
+                - Challenge mechanics: Create 2D animated ninja battle sequences with fire and ice effects
+                - Target audience: Animation enthusiasts, gamers, digital artists
+                
+                **Accessibility & Difficulty:**
+                - Difficulty level: Hard to Expert
+                - Required tools: Animation software (After Effects, Adobe Animate), drawing skills
+                - Required space: Digital workspace with computer
+                - Average person follow along: No - requires specialized animation skills
+                - Safety considerations: Safe (digital only)
+                
+                **Content Details:**
+                - Participants: 1 (animator)
+                - Setting: Digital animated environment with ninja characters
+                - Key visual elements: Fire and ice effects, ninja characters, dynamic battle scenes
+                - Estimated duration: Hours to days depending on complexity
+                
+                **Trend Analysis:**
+                - Viral potential: Medium (niche audience but high quality content)
+                - Cultural relevance: Gaming and animation communities
+                - Appeal factors: Visual effects, gaming aesthetic, short format
+                """,
+                "challenge": """
+                This is a Creative/Animation challenge requiring advanced skills.
+                Difficulty: Hard - requires animation software and digital art skills.
+                Requirements: Animation software, drawing/design skills, computer setup.
+                Music: Electronic gaming music with "tong tong" sound effects.
+                Accessibility: Not easily followable for average person - specialized skills needed.
+                Safety: Safe (digital creation only).
+                """,
+                "quick": """
+                1. Creative animation challenge featuring ninja battle sequences
+                2. Electronic gaming music with repetitive "tong" sound effects  
+                3. Very difficult - requires animation software and skills
+                4. Animation software, digital art skills, computer setup
+                """
+            },
+            "default": {
+                "comprehensive": """
+                **Music/Sound Analysis:**
+                - Background music: Popular trending audio
+                - Viral sounds: Catchy music hooks
+                - Audio elements: Music, voice, occasional effects
+                
+                **Challenge Type Classification:**
+                - Challenge category: General challenge content
+                - Challenge mechanics: Follow along activity
+                - Target audience: General social media users
+                
+                **Accessibility & Difficulty:**
+                - Difficulty level: Medium
+                - Required tools: Minimal equipment needed
+                - Required space: Small indoor space
+                - Average person follow along: Yes
+                - Safety considerations: Generally safe
+                
+                **Content Details:**
+                - Participants: 1-2 people
+                - Setting: Indoor casual environment
+                - Key visual elements: Person demonstrating activity
+                - Estimated duration: Few minutes to complete
+                
+                **Trend Analysis:**
+                - Viral potential: High (accessible content)
+                - Cultural relevance: Broad appeal
+                - Appeal factors: Easy to follow, entertaining
+                """
+            }
+        }
+        
+        # Get appropriate mock data
+        video_data = mock_analyses.get(video_id, mock_analyses["default"])
+        analysis_content = video_data.get(analysis_type, video_data.get("comprehensive", "Mock analysis content"))
+        
+        result = {
+            "video_id": video_id,
+            "analysis_type": analysis_type,
+            "content": analysis_content,
+            "success": True
+        }
+        
+        logger.debug(f"Mock video analysis completed for {video_id}")
+        return result
 
 
 # Factory function for easy instantiation

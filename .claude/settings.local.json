@@ -33,7 +33,10 @@
       "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/test_llm_provider.py -v)",
       "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/test_analyzer_agent.py -v)",
       "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/test_analyzer_agent.py::TestAnalyzerAgent::test_classify_videos_success -v)",
-      "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/ -k \"batch\" -v)"
+      "Bash(YOUTUBE_API_KEY=test_key LLM_API_KEY=test_key python -m pytest tests/ -k \"batch\" -v)",
+      "Bash(git rm:*)",
+      "Bash(timeout:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

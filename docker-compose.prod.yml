@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  youtube-trend-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: youtube-trend-analyzer-prod
+    restart: always
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env.production
+    volumes:
+      # Only mount data and logs in production
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./configs:/app/configs:ro  # Read-only configs
+    ports:
+      - "8000:8000"
+    networks:
+      - youtube-analyzer-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "from src.core.health import check_health; check_health()"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: youtube-analyzer-redis-prod
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-prod-data:/data
+    networks:
+      - youtube-analyzer-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # Nginx for reverse proxy (future web interface)
+  nginx:
+    image: nginx:alpine
+    container_name: youtube-analyzer-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./configs/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./configs/ssl:/etc/nginx/ssl:ro
+    networks:
+      - youtube-analyzer-network
+    depends_on:
+      - youtube-trend-analyzer
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+
+networks:
+  youtube-analyzer-network:
+    driver: bridge
+    name: youtube-analyzer-prod-network
+
+volumes:
+  redis-prod-data:
+    name: youtube-analyzer-redis-prod-data

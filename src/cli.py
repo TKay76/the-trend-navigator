@@ -4,24 +4,26 @@ import asyncio
 import argparse
 import json
 import sys
+import signal
 import logging
 from datetime import datetime
 from typing import Dict
+import atexit
 
 from .agents.collector_agent import create_collector_agent
 from .agents.analyzer_agent import create_analyzer_agent
-from .models.video_models import VideoCategory
+from .models.video_models import VideoCategory, ChallengeType
 from .core.settings import get_settings
 from .core.exceptions import (
     YouTubeAPIError, QuotaExceededError, ClassificationError
 )
+from .core.logging import setup_logging, get_logger
+from .core.error_handler import get_error_handler
+from .core.health import check_health
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Setup logging system
+setup_logging()
+logger = get_logger(__name__)
 
 
 class YouTubeTrendsCLI:
@@ -29,12 +31,55 @@ class YouTubeTrendsCLI:
     
     def __init__(self):
         """Initialize CLI"""
+        self.shutdown_requested = False
+        self.current_tasks = set()
+        
+        # Setup graceful shutdown
+        self._setup_signal_handlers()
+        atexit.register(self._cleanup)
+        
         try:
             self.settings = get_settings()
+            logger.info(f"CLI initialized - Environment: {self.settings.environment}")
         except Exception as e:
+            logger.error(f"Configuration error: {e}")
             print(f"❌ Configuration error: {e}")
             print("💡 Please check your .env file and ensure all required variables are set.")
             sys.exit(1)
+    
+    def _setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown"""
+        def signal_handler(signum, frame):
+            signal_name = signal.Signals(signum).name
+            logger.info(f"Received {signal_name}, initiating graceful shutdown...")
+            self.shutdown_requested = True
+            
+            # Cancel current tasks
+            for task in self.current_tasks:
+                if not task.done():
+                    task.cancel()
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    
+    def _cleanup(self):
+        """Cleanup resources on exit"""
+        logger.info("Performing cleanup...")
+        # Any cleanup tasks can be added here
+    
+    async def _handle_task_with_tracking(self, coro):
+        """Execute a coroutine with task tracking for graceful shutdown"""
+        task = asyncio.create_task(coro)
+        self.current_tasks.add(task)
+        
+        try:
+            result = await task
+            return result
+        except asyncio.CancelledError:
+            logger.info("Task cancelled due to shutdown request")
+            raise
+        finally:
+            self.current_tasks.discard(task)
     
     def create_parser(self) -> argparse.ArgumentParser:
         """Create command-line argument parser"""
@@ -171,6 +216,35 @@ class YouTubeTrendsCLI:
             default="US",
             help='Region code for search'
         )
+        pipeline_parser.add_argument(
+            '--include-video-content',
+            action='store_true',
+            help='Enable video content analysis using Gemini (more detailed but slower)'
+        )
+        
+        # Health check command
+        health_parser = subparsers.add_parser(
+            'health',
+            help='Check system health and status'
+        )
+        health_parser.add_argument(
+            '--format',
+            type=str,
+            choices=['json', 'text'],
+            default='text',
+            help='Output format (default: text)'
+        )
+        health_parser.add_argument(
+            '--monitor',
+            action='store_true',
+            help='Run continuous health monitoring'
+        )
+        health_parser.add_argument(
+            '--interval',
+            type=int,
+            default=60,
+            help='Monitoring interval in seconds (default: 60)'
+        )
         
         return parser
     
@@ -227,7 +301,10 @@ class YouTubeTrendsCLI:
             self._show_progress("Classification", 0, len(videos))
             
             # Classify videos
-            classified_videos = await analyzer.classify_videos(videos)
+            classified_videos = await analyzer.classify_videos_with_enhanced_analysis(
+                videos,
+                include_video_content=getattr(args, 'include_video_content', False)
+            )
             
             # Get analysis statistics
             stats = analyzer.get_analysis_stats()
@@ -308,35 +385,96 @@ class YouTubeTrendsCLI:
             logger.exception("Report command failed")
     
     async def pipeline_command(self, args) -> None:
-        """Execute complete pipeline"""
-        print("🔄 Running complete YouTube Shorts trend analysis pipeline...")
+        """Execute complete pipeline with iterative collection and analysis"""
+        logger.info("🔄 Running iterative YouTube Shorts trend analysis pipeline...")
+
+        MAX_COLLECTION_ATTEMPTS = 5  # 최대 수집 시도 횟수
+        VIDEOS_PER_ATTEMPT = 50    # 각 시도마다 수집할 영상 수 (max_per_category)
         
-        # Step 1: Collect
+        # "사람들이 쉽게 따라할 수 있는 댄스 챌린지"를 위한 타겟 설정
+        target_category = VideoCategory.CHALLENGE
+        target_challenge_type = ChallengeType.DANCE
+        
+        collected_video_ids = set()
+        final_classified_videos = []
+        
         print("\n" + "="*50)
-        print("STEP 1: DATA COLLECTION")
+        print("STEP 1 & 2: ITERATIVE DATA COLLECTION & AI CLASSIFICATION")
         print("="*50)
-        # Create args object for collect command
-        collect_args = argparse.Namespace(
-            categories=args.categories,
-            max_per_category=args.max_per_category,
-            days=args.days,
-            top_n=args.top_n,
-            region=args.region,
-            output="collected_videos.json"
-        )
-        await self.collect_command(collect_args)
-        
-        # Step 2: Analyze
-        print("\n" + "="*50)
-        print("STEP 2: AI CLASSIFICATION")
-        print("="*50)
-        # Create args object for analyze command
-        analyze_args = argparse.Namespace(
-            input="collected_videos.json",
-            output="classified_videos.json"
-        )
-        await self.analyze_command(analyze_args)
-        
+
+        async with create_collector_agent() as collector:
+            analyzer = create_analyzer_agent() # AnalyzerAgent는 컨텍스트 매니저가 아님
+
+            for attempt in range(MAX_COLLECTION_ATTEMPTS):
+                if self.shutdown_requested:
+                    logger.info("Shutdown requested, stopping pipeline.")
+                    break
+
+                print(f"\n🚀 수집 및 분석 시도 {attempt + 1}/{MAX_COLLECTION_ATTEMPTS} (현재 {len(final_classified_videos)}/{args.top_n}개 확보)")
+                
+                # 1. 데이터 수집
+                print(f"📊 '댄스 챌린지' 관련 최신 영상 {VIDEOS_PER_ATTEMPT}개 수집 중 (지난 {args.days}일)...")
+                new_raw_videos = await self._handle_task_with_tracking(
+                    collector.collect_by_category_keywords(
+                        categories=["dance challenge"], # 고정된 카테고리
+                        max_results_per_category=VIDEOS_PER_ATTEMPT,
+                        days=args.days,
+                        top_n=VIDEOS_PER_ATTEMPT, # 수집 단계에서는 최대한 많이 가져와서 분석 단계에서 필터링
+                        region_code=args.region
+                    )
+                )
+                
+                # 이미 처리된 영상 제외
+                videos_to_analyze = []
+                for video in new_raw_videos:
+                    if video.video_id not in collected_video_ids:
+                        videos_to_analyze.append(video)
+                        collected_video_ids.add(video.video_id)
+                
+                if not videos_to_analyze:
+                    print("ℹ️ 새로운 수집 영상이 없습니다. 다음 시도로 넘어갑니다.")
+                    continue
+
+                print(f"🔍 새로운 영상 {len(videos_to_analyze)}개 AI 분류 및 비디오 콘텐츠 분석 중...")
+                
+                # 2. AI 분류 및 비디오 콘텐츠 분석
+                classified_batch = await self._handle_task_with_tracking(
+                    analyzer.classify_videos_with_enhanced_analysis(
+                        videos_to_analyze,
+                        include_video_content=args.include_video_content
+                    )
+                )
+                
+                # 3. 조건에 맞는 영상 필터링 및 추가
+                for video in classified_batch:
+                    if len(final_classified_videos) >= args.top_n:
+                        break # 목표 개수 달성 시 중단
+                    
+                    # '댄스 챌린지' 카테고리이면서, 비디오 분석이 수행되었고,
+                    # 챌린지 타입이 'DANCE'이며, 'easy_to_follow'가 True인 영상만 선택
+                    if (video.category == target_category and
+                        video.has_video_analysis and
+                        video.challenge_type_detailed == target_challenge_type and
+                        video.enhanced_analysis.accessibility_analysis.easy_to_follow):
+                        
+                        final_classified_videos.append(video)
+                        print(f"✅ 조건에 맞는 영상 발견: {video.title} (현재 {len(final_classified_videos)}/{args.top_n}개)")
+                
+                if len(final_classified_videos) >= args.top_n:
+                    print(f"🎉 목표 개수 ({args.top_n}개) 달성! 수집 및 분석을 중단합니다.")
+                    break
+                else:
+                    print(f"➡️ 목표 개수 ({args.top_n}개) 미달. 다음 수집 시도를 진행합니다.")
+            
+            if not final_classified_videos:
+                print("❌ 조건에 맞는 영상을 찾지 못했습니다. 파이프라인을 종료합니다.")
+                return
+
+            # 최종 분류된 영상 저장
+            classified_output_file = "classified_videos.json"
+            self._save_classified_videos_to_file(final_classified_videos, classified_output_file)
+            print(f"✅ 최종 분류된 영상 {len(final_classified_videos)}개 저장 완료: {classified_output_file}")
+
         # Step 3: Report
         print("\n" + "="*50)
         print("STEP 3: TREND REPORTING")
@@ -344,13 +482,72 @@ class YouTubeTrendsCLI:
         # Create args object for report command
         report_args = argparse.Namespace(
             input="classified_videos.json",
-            category=None,
+            category=target_category.value, # 댄스 챌린지 카테고리로 리포트 생성
             output="trend_report.json",
             format="text"
         )
         await self.report_command(report_args)
         
-        print("\n🎉 Pipeline complete! All analysis steps finished successfully.")
+        print("\n🎉 파이프라인 완료! 모든 분석 단계가 성공적으로 완료되었습니다.")
+    
+    async def health_command(self, args) -> None:
+        """Execute health check command"""
+        from .core.health import monitor_health
+        
+        if args.monitor:
+            print(f"🔍 Starting health monitoring (checking every {args.interval}s)")
+            print("Press Ctrl+C to stop monitoring")
+            try:
+                await monitor_health(args.interval)
+            except KeyboardInterrupt:
+                print("\n⏹️ Health monitoring stopped")
+        else:
+            print("🔍 Running system health check...")
+            health_status = await check_health()
+            
+            if args.format == 'json':
+                print(json.dumps(health_status, indent=2))
+            else:
+                self._display_health_status(health_status)
+            
+            # Exit with error code if unhealthy
+            if health_status['status'] == 'unhealthy':
+                sys.exit(1)
+    
+    def _display_health_status(self, health_status: Dict) -> None:
+        """Display health status in human-readable format"""
+        status = health_status['status']
+        
+        # Status indicator
+        if status == 'healthy':
+            print("✅ System Status: HEALTHY")
+        elif status == 'degraded':
+            print("⚠️  System Status: DEGRADED")
+        else:
+            print("❌ System Status: UNHEALTHY")
+        
+        print(f"📅 Check Time: {health_status['timestamp']}")
+        
+        # Summary
+        summary = health_status['summary']
+        print(f"\n📊 Check Summary:")
+        print(f"   • Total checks: {summary['total_checks']}")
+        print(f"   • Healthy: {summary['healthy']}")
+        print(f"   • Degraded: {summary['degraded']}")
+        print(f"   • Unhealthy: {summary['unhealthy']}")
+        
+        # Individual checks
+        print(f"\n🔍 Individual Checks:")
+        for check in health_status['checks']:
+            status_icon = {
+                'healthy': '✅',
+                'degraded': '⚠️ ',
+                'unhealthy': '❌'
+            }.get(check['status'], '❓')
+            
+            print(f"   {status_icon} {check['name']}: {check['message']}")
+            if check.get('response_time'):
+                print(f"      Response time: {check['response_time']:.2f}s")
     
     def _save_videos_to_file(self, videos, filename: str) -> None:
         """Save videos to JSON file"""
@@ -506,6 +703,8 @@ async def main():
             await cli.report_command(args)
         elif args.command == 'pipeline':
             await cli.pipeline_command(args)
+        elif args.command == 'health':
+            await cli.health_command(args)
     except KeyboardInterrupt:
         print("\n⚠️  Operation cancelled by user")
     except Exception as e:

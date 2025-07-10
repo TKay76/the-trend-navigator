@@ -1,11 +1,18 @@
 """Application settings and configuration management"""
 
-from pydantic import Field
+import os
+from typing import Optional, List
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment-specific .env file
+environment = os.getenv('ENVIRONMENT', 'development')
+env_file = f'.env.{environment}'
+if os.path.exists(env_file):
+    load_dotenv(env_file)
+else:
+    load_dotenv()  # Fallback to .env
 
 
 class Settings(BaseSettings):
@@ -17,27 +24,32 @@ class Settings(BaseSettings):
     
     # YouTube Data API Settings
     youtube_api_key: str = Field(
-        ..., 
+        default="your_youtube_api_key_here",
+        alias="YOUTUBE_API_KEY",
         description="YouTube Data API key from Google Cloud Console"
     )
     
     # LLM Provider Settings
     llm_provider: str = Field(
         default="openai",
+        alias="LLM_PROVIDER",
         description="LLM provider (openai, anthropic, google-generativeai)"
     )
     llm_api_key: str = Field(
-        ...,
+        default="your_llm_api_key_here",
+        alias="LLM_API_KEY",
         description="API key for the selected LLM provider"
     )
     llm_model: str = Field(
         default="gpt-4o-mini",
+        alias="LLM_MODEL",
         description="LLM model to use for classification"
     )
     
     # Google API Key (required by pydantic-ai for Google models)
     google_api_key: str = Field(
         default="",
+        alias="GOOGLE_API_KEY",
         description="Google API key for Gemini models"
     )
     
@@ -62,17 +74,111 @@ class Settings(BaseSettings):
     )
     use_mock_llm: bool = Field(
         default=False,
+        alias="USE_MOCK_LLM",
         description="Use mock LLM provider instead of real API calls (for testing/development)"
     )
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    # Environment and Runtime Settings
+    environment: str = Field(
+        default="development",
+        description="Runtime environment (development, staging, production)"
+    )
+    
+    # Circuit Breaker Settings
+    circuit_breaker_failure_threshold: int = Field(
+        default=5,
+        description="Number of failures before circuit breaker opens"
+    )
+    circuit_breaker_recovery_timeout: int = Field(
+        default=60,
+        description="Seconds to wait before attempting recovery"
+    )
+    circuit_breaker_expected_exception_ratio: float = Field(
+        default=0.3,
+        description="Expected exception ratio for circuit breaker"
+    )
+    
+    # Cache Settings
+    enable_cache: bool = Field(
+        default=True,
+        description="Enable caching for API responses"
+    )
+    cache_ttl: int = Field(
+        default=1800,
+        description="Cache time-to-live in seconds"
+    )
+    
+    # Security Settings
+    secret_key: Optional[str] = Field(
+        default=None,
+        description="Secret key for security features"
+    )
+    allowed_hosts: List[str] = Field(
+        default=["localhost", "127.0.0.1"],
+        description="Allowed hosts for the application"
+    )
+    
+    # Database Settings (for future use)
+    database_url: Optional[str] = Field(
+        default=None,
+        description="Database connection URL"
+    )
+    
+    # Monitoring Settings
+    sentry_dsn: Optional[str] = Field(
+        default=None,
+        description="Sentry DSN for error tracking"
+    )
+    enable_metrics: bool = Field(
+        default=False,
+        description="Enable metrics collection"
+    )
+    
+    @field_validator('log_level')
+    def validate_log_level(cls, v):
+        """Validate log level is one of the standard levels"""
+        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        if v.upper() not in valid_levels:
+            raise ValueError(f'log_level must be one of {valid_levels}')
+        return v.upper()
+    
+    @field_validator('llm_provider')
+    def validate_llm_provider(cls, v):
+        """Validate LLM provider is supported"""
+        valid_providers = ['openai', 'anthropic', 'google-generativeai']
+        if v not in valid_providers:
+            raise ValueError(f'llm_provider must be one of {valid_providers}')
+        return v
+    
+    @field_validator('environment')
+    def validate_environment(cls, v):
+        """Validate environment is recognized"""
+        valid_envs = ['development', 'staging', 'production']
+        if v not in valid_envs:
+            raise ValueError(f'environment must be one of {valid_envs}')
+        return v
+    
+    @property
+    def is_development(self) -> bool:
+        """Check if running in development mode"""
+        return self.environment == 'development'
+    
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production mode"""
+        return self.environment == 'production'
+    
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        "env_prefix": "",
+        "extra": "ignore"
+    }
 
 
 # Global settings instance
-settings = Settings()
+_settings = None
 
 
 def get_settings() -> Settings:
@@ -82,4 +188,18 @@ def get_settings() -> Settings:
     Returns:
         Settings: Application configuration settings
     """
-    return settings
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
+
+def reload_settings() -> Settings:
+    """
+    Force reload of settings from environment variables.
+    
+    Returns:
+        Settings: Fresh application configuration settings
+    """
+    global _settings
+    _settings = None
+    return get_settings()

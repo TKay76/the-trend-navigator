@@ -19,14 +19,12 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # Virtual environments
 venv/
 venv_linux/
 env/
 ENV/
-.venv/
 
 # Environment variables
 .env
@@ -40,7 +38,6 @@ ENV/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
@@ -54,7 +51,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
-*.log.*
 
 # Testing
 .tox/
@@ -62,31 +58,34 @@ logs/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-htmlcov/
-.coverage.*
 
 # Documentation
 docs/_build/
 
-# Data files and outputs
+# Data files
 *.json
 *.csv
 *.xlsx
 *.sqlite
 *.db
-data/
-outputs/
 
 # Temporary files
 tmp/
 temp/
 .tmp/
 
+# Git
+.git/
+.gitignore
+
 # Docker
-.docker/
+Dockerfile*
+docker-compose*
+.dockerignore
 
 # CI/CD
-.github/workflows/
+.github/
+.gitlab-ci.yml
 
 # Reports and outputs
 *_REPORT.md
@@ -94,8 +93,3 @@ temp/
 classified_videos.json
 collected_videos.json
 large_collection.json
-real_trend_report.json
-
-# Runtime directories
-runtime/
-pid/

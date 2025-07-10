@@ -1,7 +1,7 @@
 """Video data models for YouTube API responses and internal structures"""
 
 from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -84,5 +84,146 @@ class CollectionRequest(BaseModel):
                 "search_queries": ["dance challenge", "fitness tips", "trending music"],
                 "max_results_per_query": 20,
                 "region_code": "US"
+            }
+        }
+
+
+# Enhanced video analysis models for YouTube content analysis
+
+class ChallengeType(str, Enum):
+    """Detailed challenge type classifications"""
+    DANCE = "Dance"
+    FOOD = "Food"
+    GAME = "Game"
+    FITNESS = "Fitness"
+    CREATIVE = "Creative"
+    REACTION = "Reaction"
+    SKILL = "Skill"
+    TREND = "Trend"
+    OTHER = "Other"
+
+
+class DifficultyLevel(str, Enum):
+    """Challenge difficulty levels"""
+    EASY = "Easy"
+    MEDIUM = "Medium"
+    HARD = "Hard"
+    EXPERT = "Expert"
+
+
+class SafetyLevel(str, Enum):
+    """Safety assessment levels"""
+    SAFE = "Safe"
+    CAUTION = "Caution"
+    RISKY = "Risky"
+    DANGEROUS = "Dangerous"
+
+
+class MusicAnalysis(BaseModel):
+    """Music and sound analysis results"""
+    genre: Optional[str] = Field(None, description="Detected music genre")
+    viral_sounds: List[str] = Field(default=[], description="Identified viral sounds or tracks")
+    audio_elements: List[str] = Field(default=[], description="Audio elements (voice, effects, music)")
+    background_music: Optional[str] = Field(None, description="Background music description")
+
+
+class ChallengeAnalysis(BaseModel):
+    """Challenge-specific analysis results"""
+    challenge_type: ChallengeType = Field(..., description="Specific challenge category")
+    mechanics: str = Field(..., description="How the challenge works")
+    rules: Optional[str] = Field(None, description="Challenge rules if apparent")
+    target_audience: str = Field(..., description="Intended audience")
+
+
+class AccessibilityAnalysis(BaseModel):
+    """Accessibility and difficulty analysis"""
+    difficulty_level: DifficultyLevel = Field(..., description="Overall difficulty")
+    required_tools: List[str] = Field(default=[], description="Required tools or materials")
+    required_space: str = Field(..., description="Space requirements")
+    required_skills: List[str] = Field(default=[], description="Required skills")
+    easy_to_follow: bool = Field(..., description="Can average person follow along")
+    safety_level: SafetyLevel = Field(..., description="Safety assessment")
+    safety_notes: Optional[str] = Field(None, description="Safety considerations")
+
+
+class ContentDetails(BaseModel):
+    """Detailed content analysis"""
+    participants_count: int = Field(..., description="Number of participants")
+    setting: str = Field(..., description="Environment/setting description")
+    key_visual_elements: List[str] = Field(default=[], description="Important visual elements")
+    estimated_duration: str = Field(..., description="Estimated time to complete challenge")
+    props_used: List[str] = Field(default=[], description="Props or objects used")
+
+
+class TrendAnalysis(BaseModel):
+    """Trend and viral potential analysis"""
+    viral_potential: str = Field(..., description="Assessment of viral potential")
+    cultural_relevance: str = Field(..., description="Cultural context and relevance")
+    appeal_factors: List[str] = Field(default=[], description="What makes this appealing")
+    trend_indicators: List[str] = Field(default=[], description="Indicators of trending potential")
+
+
+class EnhancedVideoAnalysis(BaseModel):
+    """Comprehensive video analysis results from AI"""
+    video_id: str = Field(..., description="YouTube video ID")
+    analysis_timestamp: datetime = Field(default_factory=datetime.now, description="When analysis was performed")
+    
+    # Core analysis components
+    music_analysis: MusicAnalysis = Field(..., description="Music and sound analysis")
+    challenge_analysis: ChallengeAnalysis = Field(..., description="Challenge-specific analysis")
+    accessibility_analysis: AccessibilityAnalysis = Field(..., description="Accessibility and difficulty")
+    content_details: ContentDetails = Field(..., description="Detailed content information")
+    trend_analysis: TrendAnalysis = Field(..., description="Trend and viral analysis")
+    
+    # Analysis metadata
+    analysis_confidence: float = Field(..., ge=0.0, le=1.0, description="Overall analysis confidence")
+    analysis_notes: Optional[str] = Field(None, description="Additional analysis notes")
+    raw_analysis_text: str = Field(..., description="Raw AI analysis response")
+
+
+class EnhancedClassifiedVideo(ClassifiedVideo):
+    """ClassifiedVideo with enhanced analysis data"""
+    enhanced_analysis: Optional[EnhancedVideoAnalysis] = Field(None, description="Enhanced video analysis")
+    analysis_source: str = Field(default="text", description="Source of analysis: 'text' or 'video'")
+    
+    @property
+    def has_video_analysis(self) -> bool:
+        """Check if video has been analyzed with video content"""
+        return self.enhanced_analysis is not None and self.analysis_source == "video"
+    
+    @property
+    def challenge_type_detailed(self) -> Optional[ChallengeType]:
+        """Get detailed challenge type if available"""
+        if self.enhanced_analysis:
+            return self.enhanced_analysis.challenge_analysis.challenge_type
+        return None
+    
+    @property
+    def difficulty_level(self) -> Optional[DifficultyLevel]:
+        """Get difficulty level if available"""
+        if self.enhanced_analysis:
+            return self.enhanced_analysis.accessibility_analysis.difficulty_level
+        return None
+    
+    @property
+    def viral_sounds(self) -> List[str]:
+        """Get viral sounds if available"""
+        if self.enhanced_analysis:
+            return self.enhanced_analysis.music_analysis.viral_sounds
+        return []
+
+
+class VideoAnalysisRequest(BaseModel):
+    """Request model for video analysis operations"""
+    video_ids: List[str] = Field(..., min_items=1, description="YouTube video IDs to analyze")
+    analysis_type: str = Field(default="comprehensive", description="Type of analysis to perform")
+    include_video_content: bool = Field(default=False, description="Whether to analyze actual video content")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "video_ids": ["dWFASBOoh2w", "5I7dRmkXWY4"],
+                "analysis_type": "challenge",
+                "include_video_content": True
             }
         }
