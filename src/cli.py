@@ -12,6 +12,7 @@ import atexit
 
 from .agents.collector_agent import create_collector_agent
 from .agents.analyzer_agent import create_analyzer_agent
+from .services.natural_query_service import create_natural_query_service
 from .models.video_models import VideoCategory, ChallengeType
 from .core.settings import get_settings
 from .core.exceptions import (
@@ -244,6 +245,40 @@ class YouTubeTrendsCLI:
             type=int,
             default=60,
             help='Monitoring interval in seconds (default: 60)'
+        )
+        
+        # Chat command for natural language queries
+        chat_parser = subparsers.add_parser(
+            'chat',
+            help='Process natural language queries for video analysis'
+        )
+        chat_parser.add_argument(
+            'query',
+            type=str,
+            nargs='?',
+            help='Natural language query (e.g., "댄스 챌린지 TOP 10 찾아줘")'
+        )
+        chat_parser.add_argument(
+            '--interactive',
+            action='store_true',
+            help='Start interactive chat mode'
+        )
+        chat_parser.add_argument(
+            '--output-format',
+            type=str,
+            choices=['markdown', 'json', 'text'],
+            default='markdown',
+            help='Output format for results (default: markdown)'
+        )
+        chat_parser.add_argument(
+            '--save-results',
+            type=str,
+            help='Save results to specified file'
+        )
+        chat_parser.add_argument(
+            '--verbose',
+            action='store_true',
+            help='Show detailed processing information'
         )
         
         return parser
@@ -514,6 +549,215 @@ class YouTubeTrendsCLI:
             if health_status['status'] == 'unhealthy':
                 sys.exit(1)
     
+    async def chat_command(self, args) -> None:
+        """Execute natural language chat command"""
+        if args.interactive:
+            await self._interactive_chat_mode(args)
+        elif args.query:
+            await self._process_single_query(args.query, args)
+        else:
+            print("❌ 자연어 쿼리를 입력하거나 --interactive 모드를 사용하세요.")
+            print("💡 예시: python cli.py chat \"댄스 챌린지 TOP 10 찾아줘\"")
+            sys.exit(1)
+    
+    async def _interactive_chat_mode(self, args) -> None:
+        """Run interactive chat mode"""
+        print("🤖 자연어 비디오 분석 채팅 모드")
+        print("=" * 50)
+        print("💬 자연어로 원하는 분석을 요청해보세요!")
+        print("📝 예시:")
+        print("   - '댄스 챌린지 TOP 10 찾아줘'")
+        print("   - '초보자용 쉬운 K-pop 댄스 추천해줘'")
+        print("   - '커플이 할 수 있는 로맨틱한 댄스 보여줘'")
+        print("\n🔚 종료하려면 'quit', 'exit', '종료' 입력")
+        print("-" * 50)
+        
+        query_service = create_natural_query_service()
+        
+        while True:
+            try:
+                # Get user input
+                user_input = input("\n💭 질문: ").strip()
+                
+                # Check for exit commands
+                if user_input.lower() in ['quit', 'exit', '종료', 'q']:
+                    print("👋 채팅을 종료합니다.")
+                    break
+                
+                if not user_input:
+                    print("❓ 질문을 입력해주세요.")
+                    continue
+                
+                # Process query
+                await self._process_single_query(user_input, args, query_service)
+                
+            except KeyboardInterrupt:
+                print("\n\n👋 채팅을 종료합니다.")
+                break
+            except Exception as e:
+                print(f"❌ 오류가 발생했습니다: {e}")
+                logger.exception("Interactive chat error")
+    
+    async def _process_single_query(self, query: str, args, query_service=None) -> None:
+        """Process a single natural language query"""
+        if query_service is None:
+            query_service = create_natural_query_service()
+        
+        try:
+            if args.verbose:
+                print(f"🔍 쿼리 처리 중: '{query}'")
+            
+            # Show progress indicator
+            print("⏳ 자연어 분석 및 비디오 검색 중...")
+            
+            # Process the query
+            response = await query_service.process_query(query)
+            
+            if not response.success:
+                print(f"❌ 쿼리 처리 실패: {response.error_message}")
+                return
+            
+            # Display results based on format
+            if args.output_format == 'json':
+                await self._display_json_results(response, args)
+            elif args.output_format == 'text':
+                await self._display_text_results(response, args)
+            else:  # markdown (default)
+                await self._display_markdown_results(response, args)
+            
+            # Save results if requested
+            if args.save_results:
+                await self._save_query_results(response, args.save_results, args.output_format)
+                print(f"💾 결과가 저장되었습니다: {args.save_results}")
+            
+        except Exception as e:
+            print(f"❌ 쿼리 처리 중 오류 발생: {e}")
+            logger.exception("Query processing error")
+    
+    async def _display_json_results(self, response, args) -> None:
+        """Display results in JSON format"""
+        result_data = {
+            "query": response.parsed_request.original_input if response.parsed_request else "",
+            "success": response.success,
+            "total_found": response.total_found,
+            "processing_time": response.processing_time,
+            "results": []
+        }
+        
+        for video in response.results:
+            video_data = {
+                "rank": len(result_data["results"]) + 1,
+                "video_id": video.video_id,
+                "title": video.title,
+                "channel": video.channel_title,
+                "view_count": video.view_count,
+                "confidence": video.confidence,
+                "youtube_url": f"https://www.youtube.com/watch?v={video.video_id}",
+                "published_at": video.published_at.isoformat()
+            }
+            
+            if video.has_video_analysis:
+                video_data["analysis"] = {
+                    "difficulty": video.enhanced_analysis.accessibility_analysis.difficulty_level.value,
+                    "safety": video.enhanced_analysis.accessibility_analysis.safety_level.value,
+                    "music_genre": video.enhanced_analysis.music_analysis.genre,
+                    "easy_to_follow": video.enhanced_analysis.accessibility_analysis.easy_to_follow
+                }
+            
+            result_data["results"].append(video_data)
+        
+        print(json.dumps(result_data, ensure_ascii=False, indent=2))
+    
+    async def _display_text_results(self, response, args) -> None:
+        """Display results in simple text format"""
+        print("\n" + "="*60)
+        print("🎯 자연어 쿼리 결과")
+        print("="*60)
+        
+        if response.parsed_request:
+            print(f"📝 원본 질문: {response.parsed_request.original_input}")
+            print(f"🔍 분석된 액션: {response.parsed_request.action_type.value}")
+            print(f"📊 요청 개수: {response.parsed_request.quantity_filter.count}개")
+        
+        print(f"✅ 찾은 결과: {response.total_found}개")
+        print(f"⏱️ 처리 시간: {response.processing_time:.2f}초")
+        
+        if response.summary:
+            print(f"\n📋 요약:")
+            print(response.summary)
+        
+        print(f"\n🏆 상위 결과:")
+        print("-" * 60)
+        
+        for i, video in enumerate(response.results[:5], 1):  # Show top 5 in text mode
+            print(f"{i}. {video.title}")
+            print(f"   📺 채널: {video.channel_title}")
+            print(f"   👀 조회수: {video.view_count:,}회")
+            print(f"   🎯 신뢰도: {video.confidence:.2f}")
+            print(f"   🔗 https://www.youtube.com/watch?v={video.video_id}")
+            
+            if video.has_video_analysis:
+                analysis = video.enhanced_analysis
+                print(f"   ⭐ 난이도: {analysis.accessibility_analysis.difficulty_level.value}")
+                print(f"   🎵 음악: {analysis.music_analysis.genre or 'Unknown'}")
+            
+            print()
+    
+    async def _display_markdown_results(self, response, args) -> None:
+        """Display results in markdown format"""
+        print("\n" + response.detailed_report)
+        
+        if args.verbose:
+            print("\n" + "="*50)
+            print("🔍 상세 처리 정보")
+            print("="*50)
+            
+            if response.parsed_request:
+                print(f"📊 파싱 신뢰도: {response.parsed_request.confidence:.2f}")
+                print(f"🏷️ 추출된 키워드: {', '.join(response.parsed_request.content_filter.keywords)}")
+                if response.parsed_request.content_filter.difficulty:
+                    print(f"⭐ 요청 난이도: {response.parsed_request.content_filter.difficulty.value}")
+            
+            print(f"⏱️ 총 처리 시간: {response.processing_time:.2f}초")
+            
+            if response.warnings:
+                print(f"⚠️ 경고사항:")
+                for warning in response.warnings:
+                    print(f"   - {warning}")
+    
+    async def _save_query_results(self, response, filename: str, format_type: str) -> None:
+        """Save query results to file"""
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                if format_type == 'json':
+                    result_data = {
+                        "query": response.parsed_request.original_input if response.parsed_request else "",
+                        "success": response.success,
+                        "total_found": response.total_found,
+                        "processing_time": response.processing_time,
+                        "timestamp": datetime.now().isoformat(),
+                        "results": [
+                            {
+                                "rank": i + 1,
+                                "video_id": video.video_id,
+                                "title": video.title,
+                                "channel": video.channel_title,
+                                "view_count": video.view_count,
+                                "confidence": video.confidence,
+                                "youtube_url": f"https://www.youtube.com/watch?v={video.video_id}",
+                                "published_at": video.published_at.isoformat()
+                            }
+                            for i, video in enumerate(response.results)
+                        ]
+                    }
+                    json.dump(result_data, f, ensure_ascii=False, indent=2)
+                else:  # markdown or text
+                    f.write(response.detailed_report)
+                    
+        except Exception as e:
+            logger.error(f"Failed to save results: {e}")
+            raise
+    
     def _display_health_status(self, health_status: Dict) -> None:
         """Display health status in human-readable format"""
         status = health_status['status']
@@ -705,6 +949,8 @@ async def main():
             await cli.pipeline_command(args)
         elif args.command == 'health':
             await cli.health_command(args)
+        elif args.command == 'chat':
+            await cli.chat_command(args)
     except KeyboardInterrupt:
         print("\n⚠️  Operation cancelled by user")
     except Exception as e:

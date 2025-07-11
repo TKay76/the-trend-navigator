@@ -59,16 +59,13 @@ class LLMProvider:
     Supports multiple LLM providers with cost-effective batch processing.
     """
     
-    def __init__(self, model_name: Optional[str] = None):
+    def __init__(self):
         """
         Initialize LLM provider.
-        
-        Args:
-            model_name: Optional model name override
         """
         self.settings = get_settings()
         self.provider_name = self.settings.llm_provider
-        self.model_name = model_name or self.settings.llm_model
+        self.model_name = self.settings.llm_model
         self.api_key = self.settings.llm_api_key
         
         # Initialize provider-specific clients
@@ -718,7 +715,7 @@ def create_llm_provider(model_name: Optional[str] = None):
             return create_mock_llm_provider(model_name=model_name)
         else:
             logger.info("Using Real LLM Provider (USE_MOCK_LLM=False)")
-            return LLMProvider(model_name=model_name)
+            return LLMProvider()
             
     except Exception as e:
         raise LLMProviderError(f"Failed to create LLM provider: {str(e)}")
