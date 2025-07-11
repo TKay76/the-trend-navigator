@@ -139,6 +139,70 @@ class Settings(BaseSettings):
         description="Enable metrics collection"
     )
     
+    # Real-time Monitoring Settings
+    monitoring_enabled: bool = Field(
+        default=False,
+        alias="MONITORING_ENABLED",
+        description="Enable real-time trend monitoring"
+    )
+    monitoring_interval_minutes: int = Field(
+        default=60,
+        alias="MONITORING_INTERVAL_MINUTES",
+        description="Monitoring interval in minutes"
+    )
+    trend_detection_threshold: float = Field(
+        default=5.0,
+        alias="TREND_DETECTION_THRESHOLD",
+        description="Trend detection threshold (multiplier for growth rate)"
+    )
+    viral_threshold: int = Field(
+        default=100000,
+        alias="VIRAL_THRESHOLD",
+        description="View count threshold for viral content detection"
+    )
+    
+    # Notification Settings
+    email_notifications_enabled: bool = Field(
+        default=False,
+        alias="EMAIL_NOTIFICATIONS_ENABLED",
+        description="Enable email notifications"
+    )
+    smtp_server: str = Field(
+        default="smtp.gmail.com",
+        alias="SMTP_SERVER",
+        description="SMTP server for email notifications"
+    )
+    smtp_port: int = Field(
+        default=587,
+        alias="SMTP_PORT",
+        description="SMTP server port"
+    )
+    smtp_username: Optional[str] = Field(
+        default=None,
+        alias="SMTP_USERNAME",
+        description="SMTP username"
+    )
+    smtp_password: Optional[str] = Field(
+        default=None,
+        alias="SMTP_PASSWORD",
+        description="SMTP password"
+    )
+    notification_email: Optional[str] = Field(
+        default=None,
+        alias="NOTIFICATION_EMAIL",
+        description="Email address for notifications"
+    )
+    slack_webhook_url: Optional[str] = Field(
+        default=None,
+        alias="SLACK_WEBHOOK_URL",
+        description="Slack webhook URL for notifications"
+    )
+    discord_webhook_url: Optional[str] = Field(
+        default=None,
+        alias="DISCORD_WEBHOOK_URL",
+        description="Discord webhook URL for notifications"
+    )
+    
     @field_validator('log_level')
     def validate_log_level(cls, v):
         """Validate log level is one of the standard levels"""

@@ -6,7 +6,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from ..clients.youtube_client import YouTubeClient
-from ..models.video_models import YouTubeVideoRaw, CollectionRequest
+from ..clients.youtube_charts_client import YouTubeChartsClient
+from ..models.video_models import YouTubeVideoRaw, CollectionRequest, ChartData, ChartHistoryRequest
 from ..core.settings import get_settings
 from ..core.exceptions import YouTubeAPIError, QuotaExceededError
 
@@ -22,25 +23,29 @@ class CollectorAgent:
     This agent is responsible solely for gathering video data from YouTube API.
     """
     
-    def __init__(self, youtube_client: Optional[YouTubeClient] = None):
+    def __init__(self, youtube_client: Optional[YouTubeClient] = None, charts_client: Optional[YouTubeChartsClient] = None):
         """
         Initialize collector agent.
         
         Args:
             youtube_client: YouTube API client (if None, creates new instance)
+            charts_client: YouTube Charts client (if None, creates new instance)
         """
         self.agent_name = "CollectorAgent"
         self.settings = get_settings()
         
         # Use dependency injection for testability
         self.youtube_client = youtube_client
+        self.charts_client = charts_client
         
         # Collection statistics
         self.collection_stats = {
             "videos_collected": 0,
             "api_calls_made": 0,
             "quota_used": 0,
-            "last_collection": None
+            "chart_collections": 0,
+            "last_collection": None,
+            "last_chart_collection": None
         }
         
         logger.info(f"[{self.agent_name}] Agent initialized")
@@ -197,6 +202,99 @@ class CollectorAgent:
             top_n=top_n,
             region_code=region_code
         )
+    
+    async def collect_chart_data(
+        self, 
+        region: str = "kr",
+        chart_type: str = "daily",
+        days: int = 1
+    ) -> ChartData:
+        """
+        Collect chart data from YouTube Charts.
+        
+        Args:
+            region: Region code (kr, us, etc.)
+            chart_type: Type of chart (daily, weekly) 
+            days: Number of days to collect (limited to 1 for now)
+            
+        Returns:
+            Chart data with song rankings
+            
+        Raises:
+            YouTubeAPIError: When chart collection fails
+        """
+        logger.info(f"[{self.agent_name}] Collecting chart data for {region} {chart_type} chart")
+        
+        if self.charts_client is None:
+            self.charts_client = YouTubeChartsClient(headless=True)
+        
+        try:
+            async with self.charts_client as client:
+                # Get chart songs
+                chart_songs = await client.get_top_shorts_songs_kr(chart_type)
+                
+                # Create chart data model
+                chart_data = ChartData(
+                    chart_type=chart_type,
+                    region=region,
+                    date=datetime.now(),
+                    songs=chart_songs,
+                    total_songs=len(chart_songs)
+                )
+                
+                # Update statistics
+                self.collection_stats["chart_collections"] += 1
+                self.collection_stats["last_chart_collection"] = datetime.now()
+                
+                logger.info(f"[{self.agent_name}] Chart collection complete. Found {len(chart_songs)} songs.")
+                return chart_data
+                
+        except Exception as e:
+            logger.error(f"[{self.agent_name}] Chart collection failed: {str(e)}")
+            raise YouTubeAPIError(f"Chart collection failed: {str(e)}")
+    
+    async def collect_chart_history(self, request: ChartHistoryRequest) -> Dict[str, ChartData]:
+        """
+        Collect chart history data.
+        
+        Args:
+            request: Chart history request parameters
+            
+        Returns:
+            Dictionary mapping dates to chart data
+        """
+        logger.info(f"[{self.agent_name}] Collecting chart history for {request.days} days")
+        
+        if self.charts_client is None:
+            self.charts_client = YouTubeChartsClient(headless=True)
+        
+        try:
+            async with self.charts_client as client:
+                # Get chart history
+                history = await client.get_chart_history(request.days)
+                
+                # Convert to ChartData objects
+                chart_history = {}
+                for date_str, songs in history.items():
+                    chart_data = ChartData(
+                        chart_type=request.chart_type,
+                        region=request.region,
+                        date=datetime.fromisoformat(date_str),
+                        songs=songs,
+                        total_songs=len(songs)
+                    )
+                    chart_history[date_str] = chart_data
+                
+                # Update statistics
+                self.collection_stats["chart_collections"] += len(chart_history)
+                self.collection_stats["last_chart_collection"] = datetime.now()
+                
+                logger.info(f"[{self.agent_name}] Chart history collection complete. {len(chart_history)} days.")
+                return chart_history
+                
+        except Exception as e:
+            logger.error(f"[{self.agent_name}] Chart history collection failed: {str(e)}")
+            raise YouTubeAPIError(f"Chart history collection failed: {str(e)}")
     
     def get_collection_stats(self) -> Dict[str, Any]:
         """

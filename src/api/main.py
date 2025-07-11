@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 
 from .middleware import RequestLoggingMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from .cache import get_cache_manager, cache_result
+from .monitoring_routes import router as monitoring_router
+from .charts_routes import router as charts_router
 
 from ..services.natural_query_service import create_natural_query_service, QueryResponse
 from ..plugins.plugin_manager import create_plugin_manager
@@ -77,6 +79,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include monitoring routes
+app.include_router(monitoring_router)
+
+# Include charts routes
+app.include_router(charts_router)
 
 
 # Pydantic models for API

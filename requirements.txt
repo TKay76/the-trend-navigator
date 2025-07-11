@@ -44,3 +44,13 @@ redis
 
 # Google Generative AI for video analysis
 google-generativeai
+
+# Real-time monitoring dependencies
+APScheduler==3.10.4
+aiosmtplib==3.0.1
+aiofiles==23.2.1
+aiosqlite==0.19.0
+
+# Web scraping dependencies
+selenium==4.26.1
+webdriver-manager==4.0.2

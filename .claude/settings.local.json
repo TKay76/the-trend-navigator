@@ -42,7 +42,13 @@
       "Bash(ss:*)",
       "Bash(curl:*)",
       "Bash(npm update:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:charts.youtube.com)",
+      "Bash(chmod:*)",
+      "Bash(./quick_youtube_charts.py -n 3)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(playwright install:*)"
     ],
     "deny": []
   }

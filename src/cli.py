@@ -21,6 +21,7 @@ from .core.exceptions import (
 from .core.logging import setup_logging, get_logger
 from .core.error_handler import get_error_handler
 from .core.health import check_health
+from .core.scheduler import get_scheduler, start_monitoring, stop_monitoring
 
 # Setup logging system
 setup_logging()

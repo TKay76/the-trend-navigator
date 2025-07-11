@@ -227,3 +227,74 @@ class VideoAnalysisRequest(BaseModel):
                 "include_video_content": True
             }
         }
+
+
+# YouTube Charts Models
+
+class TrendDirection(str, Enum):
+    """Chart trend direction indicators"""
+    UP = "up"
+    DOWN = "down"
+    STABLE = "stable"
+    NEW = "new"
+
+
+class ChartSong(BaseModel):
+    """Chart song data from YouTube Charts"""
+    title: str = Field(..., description="Song title")
+    artist: str = Field(..., description="Artist name")
+    rank: int = Field(..., ge=1, description="Current chart position")
+    views: Optional[int] = Field(None, description="View count if available")
+    chart_weeks: Optional[int] = Field(None, description="Number of weeks on chart")
+    trend_direction: Optional[TrendDirection] = Field(None, description="Trend direction")
+    video_id: Optional[str] = Field(None, description="YouTube video ID if available")
+    chart_date: datetime = Field(default_factory=datetime.now, description="Chart date")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "title": "Example Song",
+                "artist": "Example Artist",
+                "rank": 1,
+                "views": 1000000,
+                "chart_weeks": 3,
+                "trend_direction": "up",
+                "video_id": "dQw4w9WgXcQ"
+            }
+        }
+
+
+class ChartData(BaseModel):
+    """Complete chart data for a specific date and region"""
+    chart_type: str = Field(..., description="Type of chart (daily, weekly)")
+    region: str = Field(..., description="Region code (kr, us, etc.)")
+    date: datetime = Field(..., description="Chart date")
+    songs: List[ChartSong] = Field(..., description="List of chart songs")
+    total_songs: int = Field(..., description="Total number of songs in chart")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "chart_type": "daily",
+                "region": "kr",
+                "date": "2024-01-01T00:00:00Z",
+                "songs": [],
+                "total_songs": 50
+            }
+        }
+
+
+class ChartHistoryRequest(BaseModel):
+    """Request model for chart history collection"""
+    region: str = Field("kr", description="Region code")
+    chart_type: str = Field("daily", description="Chart type")
+    days: int = Field(7, ge=1, le=30, description="Number of days to fetch")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "region": "kr",
+                "chart_type": "daily",
+                "days": 7
+            }
+        }
