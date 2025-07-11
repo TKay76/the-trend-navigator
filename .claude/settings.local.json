@@ -40,7 +40,9 @@
       "Bash(. venv_linux/bin/activate)",
       "Bash(pkill:*)",
       "Bash(ss:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm update:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
