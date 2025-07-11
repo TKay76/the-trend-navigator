@@ -107,6 +107,11 @@ class Settings(BaseSettings):
         default=1800,
         description="Cache time-to-live in seconds"
     )
+    redis_url: Optional[str] = Field(
+        default=None,
+        alias="REDIS_URL",
+        description="Redis connection URL for caching"
+    )
     
     # Security Settings
     secret_key: Optional[str] = Field(

@@ -36,8 +36,8 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import sys; sys.exit(0)"
 
-# Default command for development
-CMD ["python", "-m", "src.cli", "pipeline"]
+# Default command for development (web server)
+CMD ["python", "web_server.py"]
 
 # Production stage
 FROM base AS production
@@ -62,12 +62,15 @@ COPY --chown=appuser:appuser configs/supervisord.conf /etc/supervisor/conf.d/sup
 # Switch to non-root user
 USER appuser
 
-# Health check with actual application endpoint
+# Health check with web server endpoint
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "from src.core.health import check_health; check_health()" || exit 1
+    CMD curl -f http://localhost:8000/api/health || exit 1
 
 # Expose port for future web interface
 EXPOSE 8000
 
-# Use supervisor for process management in production
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Copy web server script
+COPY --chown=appuser:appuser web_server.py ./
+
+# Use web server for production
+CMD ["python", "web_server.py"]

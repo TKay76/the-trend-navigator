@@ -11,6 +11,7 @@ services:
     environment:
       - PYTHONPATH=/app
       - ENVIRONMENT=development
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     volumes:
@@ -28,7 +29,7 @@ services:
     networks:
       - youtube-analyzer-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -37,7 +37,10 @@
       "Bash(git rm:*)",
       "Bash(timeout:*)",
       "Bash(rg:*)",
-      "Bash(. venv_linux/bin/activate)"
+      "Bash(. venv_linux/bin/activate)",
+      "Bash(pkill:*)",
+      "Bash(ss:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }
